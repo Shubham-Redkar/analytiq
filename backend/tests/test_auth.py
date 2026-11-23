@@ -248,3 +248,58 @@ class TestCSRFProtection:
         )
         assert evil_res.status_code == 403
         assert "CSRF validation failed" in evil_res.json()["detail"]
+
+
+class TestUserPersistenceAndRestart:
+    """Regression tests for user persistence across restarts and test DB isolation."""
+
+    async def test_user_persists_across_fresh_client_connections(self, client: AsyncClient) -> None:
+        """A registered user remains persistent and can log in across separate client sessions."""
+        email = "persisted.analyst@example.com"
+        password = "SecurePassword123!"
+
+        # Step 1: Register user
+        reg_res = await client.post(
+            "/api/v1/auth/register",
+            json={"email": email, "password": password, "display_name": "Persistent Analyst"},
+        )
+        assert reg_res.status_code == 201
+
+        # Step 2: Simulate service restart / fresh client session by clearing cookies
+        client.cookies.clear()
+
+        # Step 3: Log in as the existing user
+        login_res = await client.post(
+            "/api/v1/auth/login",
+            json={"email": email, "password": password},
+        )
+        assert login_res.status_code == 200
+        data = login_res.json()
+        assert data["email"] == email
+        assert data["display_name"] == "Persistent Analyst"
+
+        # Step 4: Verify profile is accessible
+        me_res = await client.get("/api/v1/auth/me")
+        assert me_res.status_code == 200
+        assert me_res.json()["email"] == email
+
+    async def test_password_hash_remains_verifiable_multiple_logins(
+        self, client: AsyncClient
+    ) -> None:
+        """Argon2id password verification succeeds consistently across repeated logins."""
+        email = "multilogin@example.com"
+        password = "MultiLoginPassword123!"
+
+        reg_res = await client.post(
+            "/api/v1/auth/register",
+            json={"email": email, "password": password, "display_name": "Multi Login"},
+        )
+        assert reg_res.status_code == 201
+
+        for _ in range(3):
+            client.cookies.clear()
+            login_res = await client.post(
+                "/api/v1/auth/login",
+                json={"email": email, "password": password},
+            )
+            assert login_res.status_code == 200

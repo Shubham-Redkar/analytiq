@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
+import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 
 function LoginForm() {
@@ -26,7 +27,24 @@ function LoginForm() {
       await login(email, password);
       router.push(redirectPath);
     } catch (err: unknown) {
-      if (err instanceof Error) {
+      if (err instanceof ApiError) {
+        if (err.category === "throttled") {
+          setError(
+            err.message ||
+              "Account is temporarily locked due to multiple failed login attempts. Please try again later."
+          );
+        } else if (err.category === "credentials") {
+          setError("Invalid email or password.");
+        } else if (err.category === "security") {
+          setError("Security validation failed. Please refresh the page and try again.");
+        } else if (err.category === "network") {
+          setError("Unable to connect to the server. Please verify your connection.");
+        } else if (err.category === "server") {
+          setError("A server error occurred. Please try again shortly.");
+        } else {
+          setError(err.message || "An unexpected error occurred during login.");
+        }
+      } else if (err instanceof Error) {
         setError(err.message);
       } else {
         setError("An unexpected error occurred during login.");

@@ -2,13 +2,32 @@ import type { ApiErrorResponse, User } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
-class ApiError extends Error {
-  status: number;
+export type ApiErrorCategory =
+  | "credentials"
+  | "throttled"
+  | "security"
+  | "server"
+  | "network"
+  | "unknown";
 
-  constructor(message: string, status: number) {
+export class ApiError extends Error {
+  status: number;
+  category: ApiErrorCategory;
+
+  constructor(message: string, status: number, category?: ApiErrorCategory) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.category = category || ApiError.categorizeStatus(status);
+  }
+
+  static categorizeStatus(status: number): ApiErrorCategory {
+    if (status === 401) return "credentials";
+    if (status === 423) return "throttled";
+    if (status === 403) return "security";
+    if (status >= 500) return "server";
+    if (status === 0) return "network";
+    return "unknown";
   }
 }
 
@@ -20,11 +39,20 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    credentials: "include",
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+      credentials: "include",
+    });
+  } catch {
+    throw new ApiError(
+      "Unable to connect to the server. Please check your network connection.",
+      0,
+      "network"
+    );
+  }
 
   if (!response.ok) {
     let errorMessage = `Request failed with status ${response.status}`;
@@ -75,5 +103,3 @@ export const api = {
     });
   },
 };
-
-export { ApiError };

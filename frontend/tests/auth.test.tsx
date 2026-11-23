@@ -7,6 +7,7 @@ import { vi } from "vitest";
 import LoginPage from "../app/login/page";
 import RegisterPage from "../app/register/page";
 import * as authContext from "../context/auth-context";
+import { ApiError } from "../lib/api";
 
 // Mock next/navigation
 const mockPush = vi.fn();
@@ -57,6 +58,102 @@ describe("Authentication Pages", () => {
 
       await waitFor(() => {
         expect(screen.getByRole("alert")).toHaveTextContent("Invalid email or password.");
+      });
+    });
+
+    it("displays lockout message when account is throttled (HTTP 423)", async () => {
+      const mockLogin = vi.fn().mockRejectedValue(
+        new ApiError("Account temporarily locked due to too many failed login attempts.", 423)
+      );
+      vi.spyOn(authContext, "useAuth").mockReturnValue({
+        user: null,
+        loading: false,
+        login: mockLogin,
+        register: vi.fn(),
+        logout: vi.fn(),
+        refresh: vi.fn(),
+      });
+
+      render(<LoginPage />);
+
+      await userEvent.type(screen.getByLabelText(/email address/i), "locked@example.com");
+      await userEvent.type(screen.getByLabelText(/password/i), "wrongpassword");
+      await userEvent.click(screen.getByRole("button", { name: /sign in/i }));
+
+      await waitFor(() => {
+        expect(screen.getByRole("alert")).toHaveTextContent(/temporarily locked/i);
+      });
+    });
+
+    it("displays security message on CSRF failure (HTTP 403)", async () => {
+      const mockLogin = vi.fn().mockRejectedValue(
+        new ApiError("CSRF validation failed", 403)
+      );
+      vi.spyOn(authContext, "useAuth").mockReturnValue({
+        user: null,
+        loading: false,
+        login: mockLogin,
+        register: vi.fn(),
+        logout: vi.fn(),
+        refresh: vi.fn(),
+      });
+
+      render(<LoginPage />);
+
+      await userEvent.type(screen.getByLabelText(/email address/i), "csrf@example.com");
+      await userEvent.type(screen.getByLabelText(/password/i), "somepassword");
+      await userEvent.click(screen.getByRole("button", { name: /sign in/i }));
+
+      await waitFor(() => {
+        expect(screen.getByRole("alert")).toHaveTextContent(/security validation failed/i);
+      });
+    });
+
+    it("displays server error message on 500 status", async () => {
+      const mockLogin = vi.fn().mockRejectedValue(
+        new ApiError("Internal server error", 500)
+      );
+      vi.spyOn(authContext, "useAuth").mockReturnValue({
+        user: null,
+        loading: false,
+        login: mockLogin,
+        register: vi.fn(),
+        logout: vi.fn(),
+        refresh: vi.fn(),
+      });
+
+      render(<LoginPage />);
+
+      await userEvent.type(screen.getByLabelText(/email address/i), "user@example.com");
+      await userEvent.type(screen.getByLabelText(/password/i), "password123");
+      await userEvent.click(screen.getByRole("button", { name: /sign in/i }));
+
+      await waitFor(() => {
+        expect(screen.getByRole("alert")).toHaveTextContent(/server error occurred/i);
+      });
+    });
+
+    it("displays network error message on connection failure", async () => {
+      const mockLogin = vi.fn().mockRejectedValue(
+        new ApiError("Unable to connect to the server.", 0, "network")
+      );
+      vi.spyOn(authContext, "useAuth").mockReturnValue({
+        user: null,
+        loading: false,
+        login: mockLogin,
+        register: vi.fn(),
+        logout: vi.fn(),
+        refresh: vi.fn(),
+      });
+
+      render(<LoginPage />);
+
+      await userEvent.type(screen.getByLabelText(/email address/i), "user@example.com");
+      await userEvent.type(screen.getByLabelText(/password/i), "password123");
+      await userEvent.click(screen.getByRole("button", { name: /sign in/i }));
+
+      await waitFor(() => {
+        expect(screen.getByRole("alert")).toHaveTextContent(/unable to connect to the server/i);
       });
     });
 
