@@ -35,6 +35,7 @@ export interface Dataset {
   created_at: string;
   updated_at: string;
   schema_json?: DatasetSchema | null;
+  quality_summary?: DatasetProfileSummary | null;
 }
 
 export interface DatasetListResponse {
@@ -46,7 +47,7 @@ export interface DatasetListResponse {
 }
 
 export interface DatasetPreviewResponse {
-  columns: { name: string; duckdb_type: string }[];
+  columns: { name: string; duckdb_type: string; logical_type?: string }[];
   rows: Record<string, unknown>[];
   total_rows: number;
   offset: number;
@@ -63,6 +64,8 @@ export interface ColumnProfile {
   max: number | string | null;
   mean: number | null;
   top_values: { value: string; count: number }[];
+  is_discrete?: boolean;
+  is_high_cardinality?: boolean;
 }
 
 export interface DatasetProfileSummary {
@@ -82,6 +85,14 @@ export interface QualityFinding {
   message: string;
 }
 
+export interface ColumnMissingBreakdown {
+  name: string;
+  logical_type: string;
+  null_count: number;
+  null_percentage: number;
+  distinct_count: number;
+}
+
 export interface DatasetProfileResponse {
   summary: DatasetProfileSummary;
   columns: ColumnProfile[];
@@ -90,5 +101,6 @@ export interface DatasetProfileResponse {
 export interface DatasetQualityResponse {
   summary: DatasetProfileSummary;
   quality_findings: QualityFinding[];
+  columns_breakdown?: ColumnMissingBreakdown[];
 }
 

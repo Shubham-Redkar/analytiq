@@ -97,6 +97,13 @@ class Dataset(Base):
 
     __table_args__ = (Index("ix_datasets_owner_created", "owner_id", "created_at"),)
 
+    @property
+    def quality_summary(self) -> dict[str, Any] | None:
+        """Return the precomputed quality summary from profile_json if present."""
+        if self.profile_json and isinstance(self.profile_json, dict):
+            return self.profile_json.get("summary")
+        return None
+
     def __repr__(self) -> str:
         return (
             f"<Dataset(id={self.id}, name={self.name!r}, "
