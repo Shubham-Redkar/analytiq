@@ -113,6 +113,12 @@ Default configuration values:
 | `POSTGRES_PASSWORD` | `changeme_local_only` | Development password |
 | `CORS_ORIGINS` | `["http://localhost:3000","http://127.0.0.1:3000"]` | Allowed web origins |
 | `LOG_LEVEL` | `INFO` | Python logging level |
+| `SESSION_COOKIE_NAME` | `analytiq_session` | Name of the HTTP-only session cookie |
+| `SESSION_EXPIRE_DAYS` | `7` | Session lifetime in days |
+| `COOKIE_SECURE` | `false` | Enable Secure flag on cookies (set true in production) |
+| `COOKIE_SAMESITE` | `lax` | SameSite cookie policy (`lax`, `strict`, `none`) |
+| `MAX_LOGIN_ATTEMPTS` | `5` | Maximum failed attempts before account lockout |
+| `LOCKOUT_DURATION_MINUTES` | `15` | Account lockout duration in minutes |
 
 *Never commit the `.env` file to version control.*
 
@@ -199,7 +205,47 @@ make ready
 
 ---
 
-## 8. Quality Gates & Continuous Integration
+## 8. Milestone M1: Authentication & Session Architecture
+
+Milestone M1 introduces secure user registration, authentication, opaque hashed session management, CSRF protection, and an authenticated dashboard shell.
+
+### Security Foundations
+
+1. **Password Hashing (Argon2id)**:
+   - Implemented via `argon2-cffi`. Plaintext passwords are never logged, persisted, or returned.
+   - Non-existent user logins execute dummy verification against a constant precomputed hash to prevent user enumeration through timing side channels.
+2. **Opaque Session Tokens**:
+   - High-entropy 32-byte tokens (`secrets.token_urlsafe(32)`) are issued upon successful login.
+   - Only the SHA-256 hash of the token is stored in the PostgreSQL `sessions` table. A database leak cannot compromise active session tokens.
+3. **Cookie Security**:
+   - Tokens are delivered via an HTTP-only cookie (`analytiq_session`) with `SameSite=Lax` and configurable `Secure` flag (`false` in dev, `true` in production).
+   - Prevents client-side script access (mitigating XSS token theft).
+4. **Brute-Force & Lockout Protection**:
+   - Accounts track consecutive failed login attempts.
+   - Reaching 5 consecutive failures triggers an automatic 15-minute account lockout (`HTTP 423 Locked`). Successful authentication resets failed attempts.
+5. **CSRF Origin Verification**:
+   - State-changing requests (`POST`, `PUT`, `PATCH`, `DELETE`) carrying a session cookie must present a valid `Origin` or `Referer` matching allowed CORS origins or host.
+
+### API Contract Reference
+
+| Endpoint | Method | Status | Description |
+|---|---|---|---|
+| `/api/v1/auth/register` | `POST` | `201` | Register a new user (`email`, `password`, `display_name`) |
+| `/api/v1/auth/login` | `POST` | `200` | Authenticate user, issue opaque token, set session cookie |
+| `/api/v1/auth/logout` | `POST` | `200` | Revoke session in database and delete cookie |
+| `/api/v1/auth/me` | `GET` | `200` | Return profile of currently authenticated user |
+| `/api/v1/users/me` | `GET` | `200` | Return user profile for ownership validation |
+
+### Frontend Experience
+
+- **Landing Page (`/`)**: Dynamic call-to-actions based on authentication state.
+- **Sign In (`/login`)**: Accessible card with email/password validation, redirect handling (`?redirect=...`), and lockout error presentation.
+- **Sign Up (`/register`)**: Account creation with client validation (minimum 8 characters, password confirmation).
+- **Dashboard (`/dashboard`)**: Protected route verifying session credentials with loading skeletons, user ownership card, milestone status, and dataset placeholders for M2.
+
+---
+
+## 9. Quality Gates & Continuous Integration
 
 Run the comprehensive quality gate check locally before committing changes:
 ```bash
