@@ -5,6 +5,49 @@ from unittest.mock import AsyncMock, patch
 from httpx import AsyncClient
 
 # ---------------------------------------------------------------------------
+# Root endpoint
+# ---------------------------------------------------------------------------
+
+
+class TestRootEndpoint:
+    """Tests for GET / (API root endpoint)."""
+
+    async def test_root_returns_200(self, client: AsyncClient) -> None:
+        """Root endpoint returns HTTP 200 OK."""
+        response = await client.get("/")
+        assert response.status_code == 200
+
+    async def test_root_response_contract(self, client: AsyncClient) -> None:
+        """Root endpoint returns expected metadata and operational paths."""
+        response = await client.get("/")
+        body = response.json()
+        assert body["name"] == "AnalytIQ API"
+        assert "AnalytIQ" in body["description"]
+        assert body["version"] == "0.1.0"
+        assert body["docs_url"] == "/docs"
+        assert body["health_url"] == "/api/v1/health"
+        assert body["ready_url"] == "/api/v1/ready"
+        assert body["status"] == "running"
+
+    async def test_root_independent_of_database(self, client: AsyncClient) -> None:
+        """Root endpoint succeeds even when PostgreSQL is unreachable."""
+        with patch(
+            "app.db.session.check_database_connectivity",
+            new_callable=AsyncMock,
+            return_value=False,
+        ):
+            response = await client.get("/")
+        assert response.status_code == 200
+        assert response.json()["status"] == "running"
+
+    async def test_api_docs_redirect(self, client: AsyncClient) -> None:
+        """Legacy /api/docs redirects to canonical /docs."""
+        response = await client.get("/api/docs", follow_redirects=False)
+        assert response.status_code in (307, 308)
+        assert response.headers["location"] == "/docs"
+
+
+# ---------------------------------------------------------------------------
 # Health endpoint
 # ---------------------------------------------------------------------------
 
