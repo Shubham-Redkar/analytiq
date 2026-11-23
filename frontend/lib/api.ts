@@ -1,4 +1,12 @@
-import type { ApiErrorResponse, User } from "./types";
+import type {
+  ApiErrorResponse,
+  Dataset,
+  DatasetListResponse,
+  DatasetPreviewResponse,
+  DatasetProfileResponse,
+  DatasetQualityResponse,
+  User,
+} from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -35,7 +43,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   const url = `${API_BASE}${endpoint}`;
   const headers = new Headers(options.headers || {});
 
-  if (!headers.has("Content-Type") && options.body) {
+  if (!headers.has("Content-Type") && options.body && !(options.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -101,5 +109,68 @@ export const api = {
     return request<User>("/api/v1/users/me", {
       method: "GET",
     });
+  },
+
+  async uploadDataset(file: File, name?: string): Promise<Dataset> {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (name && name.trim()) {
+      formData.append("name", name.trim());
+    }
+    return request<Dataset>("/api/v1/datasets", {
+      method: "POST",
+      body: formData,
+    });
+  },
+
+  async listDatasets(page = 1, pageSize = 20): Promise<DatasetListResponse> {
+    return request<DatasetListResponse>(
+      `/api/v1/datasets?page=${page}&page_size=${pageSize}`,
+      {
+        method: "GET",
+      }
+    );
+  },
+
+  async getDataset(id: string): Promise<Dataset> {
+    return request<Dataset>(`/api/v1/datasets/${id}`, {
+      method: "GET",
+    });
+  },
+
+  async getDatasetPreview(
+    id: string,
+    offset = 0,
+    limit = 25
+  ): Promise<DatasetPreviewResponse> {
+    return request<DatasetPreviewResponse>(
+      `/api/v1/datasets/${id}/preview?offset=${offset}&limit=${limit}`,
+      {
+        method: "GET",
+      }
+    );
+  },
+
+  async getDatasetProfile(id: string): Promise<DatasetProfileResponse> {
+    return request<DatasetProfileResponse>(`/api/v1/datasets/${id}/profile`, {
+      method: "GET",
+    });
+  },
+
+  async getDatasetQuality(id: string): Promise<DatasetQualityResponse> {
+    return request<DatasetQualityResponse>(`/api/v1/datasets/${id}/quality`, {
+      method: "GET",
+    });
+  },
+
+  async deleteDataset(
+    id: string
+  ): Promise<{ status: string; message: string; dataset_id: string }> {
+    return request<{ status: string; message: string; dataset_id: string }>(
+      `/api/v1/datasets/${id}`,
+      {
+        method: "DELETE",
+      }
+    );
   },
 };
