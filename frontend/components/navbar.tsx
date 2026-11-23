@@ -31,6 +31,12 @@ export function Navbar() {
               >
                 Dashboard
               </Link>
+              <Link
+                href="/datasets"
+                className="text-muted-foreground transition-colors hover:text-foreground font-medium"
+              >
+                Datasets
+              </Link>
             </nav>
           )}
         </div>

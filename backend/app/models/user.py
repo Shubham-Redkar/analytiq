@@ -11,6 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 if TYPE_CHECKING:
+    from app.models.dataset import Dataset
     from app.models.session import Session
 
 
@@ -68,6 +69,12 @@ class User(Base):
     sessions: Mapped[list["Session"]] = relationship(
         "Session",
         back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    datasets: Mapped[list["Dataset"]] = relationship(
+        "Dataset",
+        back_populates="owner",
         cascade="all, delete-orphan",
         passive_deletes=True,
     )

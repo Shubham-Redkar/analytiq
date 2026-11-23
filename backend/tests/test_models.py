@@ -3,6 +3,7 @@
 import uuid
 from datetime import UTC, datetime
 
+from app.models.dataset import Dataset
 from app.models.session import Session
 from app.models.user import User
 
@@ -57,3 +58,29 @@ class TestUserAndSessionModels:
             expires_at=datetime.now(UTC),
         )
         assert f"<Session id={user_id} user_id={user_id}>" == repr(session)
+
+    def test_dataset_instantiation(self) -> None:
+        """Dataset model can be instantiated with valid metadata."""
+        owner_id = uuid.uuid4()
+        dataset = Dataset(
+            owner_id=owner_id,
+            name="Q4 Sales",
+            original_filename="sales_q4.csv",
+            file_format="CSV",
+            file_size_bytes=10240,
+            storage_key="test_storage_key_123",
+            status="ready",
+            row_count=100,
+            column_count=5,
+        )
+        assert dataset.owner_id == owner_id
+        assert dataset.name == "Q4 Sales"
+        assert dataset.file_format == "CSV"
+        assert dataset.file_size_bytes == 10240
+        assert dataset.storage_key == "test_storage_key_123"
+        assert dataset.status == "ready"
+        assert dataset.row_count == 100
+        assert dataset.column_count == 5
+        assert repr(dataset) == (
+            f"<Dataset(id={dataset.id}, name='Q4 Sales', format=CSV, status=ready)>"
+        )

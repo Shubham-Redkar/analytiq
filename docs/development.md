@@ -241,11 +241,87 @@ Milestone M1 introduces secure user registration, authentication, opaque hashed 
 - **Landing Page (`/`)**: Dynamic call-to-actions based on authentication state.
 - **Sign In (`/login`)**: Accessible card with email/password validation, redirect handling (`?redirect=...`), and lockout error presentation.
 - **Sign Up (`/register`)**: Account creation with client validation (minimum 8 characters, password confirmation).
-- **Dashboard (`/dashboard`)**: Protected route verifying session credentials with loading skeletons, user ownership card, milestone status, and dataset placeholders for M2.
+- **Dashboard (`/dashboard`)**: Protected route verifying session credentials with loading skeletons, user ownership card, milestone status, and live dataset counters with shortcuts to explore and upload datasets.
 
 ---
 
-## 9. Quality Gates & Continuous Integration
+## 9. Milestone M2: Dataset Ingestion & Exploration Architecture
+
+Milestone M2 introduces deterministic dataset ingestion, Parquet normalization, high-performance in-memory DuckDB analytical querying, data profiling, data quality findings, and user-owned dataset exploration.
+
+### Architectural Principles
+
+1. **Deterministic Processing ("AI plans and interprets. Deterministic tools calculate. Evidence validates. AnalytIQ explains.")**:
+   - Ingestion and profiling are strictly deterministic: no probabilistic LLM calls are involved in calculating row counts, null distributions, distinct counts, or schema types.
+2. **Dual-Engine Storage Design**:
+   - **PostgreSQL 16**: System of record for user accounts, sessions, and dataset metadata (`datasets` table with `owner_id` FK to `users.id` with `CASCADE` deletion).
+   - **Parquet Storage**: Analytical engine target stored under `storage/parquet/<dataset_id>/data.parquet`.
+   - **Source Archive**: Exact uploaded binary file preserved under `storage/uploads/<dataset_id>/source.<ext>`.
+3. **DuckDB Query Engine**:
+   - In-memory execution pinned to configurable boundaries (`DUCKDB_MEMORY_LIMIT="512MB"`, `threads=2`).
+   - Direct read of Parquet files via `SELECT ... FROM read_parquet(...)`. Fast columnar queries for paginated preview, column statistics, distinct counts, and quality metrics.
+4. **Ingestion Boundaries & Safety**:
+   - Maximum file size: **25 MiB** (streaming validation aborts transfers that exceed limit).
+   - Maximum row count: **250,000 rows**.
+   - Maximum column count: **200 columns**.
+   - Path traversal prevention: UUIDv4 subdirectories and strictly validated canonical path resolution within `storage_path`.
+   - Thread isolation: CPU/IO-bound parsing and DuckDB workloads run in worker threads via `asyncio.to_thread`.
+5. **Deterministic Schema Inference**:
+   - Analyzes non-null values with strict precedence: `integer` -> `float` -> `date` -> `timestamp` -> `boolean` -> `string`.
+   - Numeric identifiers with leading zeros (e.g. `'01234'`, postal codes, IDs) are strictly classified as `string` to prevent destructive loss of leading digits.
+
+### API Contract Reference
+
+| Endpoint | Method | Status | Description |
+|---|---|---|---|
+| `/api/v1/datasets/upload` | `POST` | `201` | Upload and normalize CSV/XLSX file (`multipart/form-data`) |
+| `/api/v1/datasets` | `GET` | `200` | List user-owned datasets with pagination (`page`, `page_size`) |
+| `/api/v1/datasets/{id}` | `GET` | `200` | Retrieve dataset metadata and inferred schema |
+| `/api/v1/datasets/{id}/preview` | `GET` | `200` | Paginated tabular row preview via DuckDB (`offset`, `limit`) |
+| `/api/v1/datasets/{id}/profile` | `GET` | `200` | Comprehensive column statistics and top 5 frequent values |
+| `/api/v1/datasets/{id}/quality` | `GET` | `200` | Deterministic data quality findings and alerts |
+| `/api/v1/datasets/{id}` | `DELETE` | `200` | Delete dataset record and associated storage files |
+
+### Dataset Exploration Commands via cURL
+
+```bash
+# 1. Login and obtain session cookie
+curl -s -c cookies.txt -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"ValidPassword123!"}'
+
+# 2. Upload a CSV dataset
+curl -s -b cookies.txt -X POST http://localhost:8000/api/v1/datasets/upload \
+  -F "file=@sample.csv" \
+  -F "name=Sales Data Q1"
+
+# 3. List datasets
+curl -s -b cookies.txt http://localhost:8000/api/v1/datasets
+
+# 4. Preview dataset rows (page 1, 20 rows)
+curl -s -b cookies.txt "http://localhost:8000/api/v1/datasets/<DATASET_ID>/preview?offset=0&limit=20"
+
+# 5. Fetch column profiling
+curl -s -b cookies.txt http://localhost:8000/api/v1/datasets/<DATASET_ID>/profile
+
+# 6. Fetch data quality findings
+curl -s -b cookies.txt http://localhost:8000/api/v1/datasets/<DATASET_ID>/quality
+```
+
+### Frontend Experience
+
+- **Datasets Management (`/datasets`)**: Paginated list of user-owned datasets with format badges, row/column counts, file sizes, creation timestamps, and safe delete confirmation modals.
+- **Dataset Upload (`/datasets/upload`)**: Drag-and-drop file upload zone, client validation (25 MiB limit, `.csv` or `.xlsx` extension), optional custom dataset name, upload progress indicator, and error banners.
+- **Dataset Exploration (`/datasets/[id]`)**:
+  - **Overview Strip**: Key metrics (rows, columns, format, size, status, timestamp) and quick actions.
+  - **Data Preview Tab**: Paginated grid powered by DuckDB, displaying distinct visual null styling (`NULL`), column types, and horizontal scroll for wide schemas.
+  - **Schema Definition Tab**: Full list of columns with physical types, inferred logical types, nullable indicators, and sample values.
+  - **Column Profiling Tab**: Deep statistical cards per column displaying null percentage bars, distinct counts, numeric min/mean/max, date min/max, and top 5 frequent value distributions.
+  - **Data Quality Tab**: Deterministic quality findings cards (missing values, high cardinality, duplicate rows, constant columns) with severity indicators (`info`, `warning`, `critical`).
+
+---
+
+## 10. Quality Gates & Continuous Integration
 
 Run the comprehensive quality gate check locally before committing changes:
 ```bash
@@ -265,7 +341,7 @@ GitHub Actions CI (`.github/workflows/ci.yml`) executes these identical checks a
 
 ---
 
-## 9. Troubleshooting
+## 11. Troubleshooting
 
 ### Port Conflict Configuration
 AnalytIQ maps PostgreSQL to host port `5433` by default to avoid conflicts with existing PostgreSQL instances running on port `5432` in WSL2 Ubuntu. If port 5433 is also occupied:
@@ -284,7 +360,7 @@ If `docker: command not found` or `Cannot connect to the Docker daemon`:
 
 ---
 
-## 10. Safe Shutdown
+## 12. Safe Shutdown
 
 To stop all local processes and clean temporary caches:
 1. Stop the Next.js process: `Ctrl + C` in the frontend terminal.
