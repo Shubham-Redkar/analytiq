@@ -26,6 +26,24 @@ _test_session_factory: async_sessionmaker[AsyncSession] | None = None
 _test_db_initialized = False
 
 
+APPROVED_TEST_DATABASE = "analytiq_test_db"
+
+
+async def verify_test_database_identity(conn) -> None:
+    """Enforce explicit test database identity guard before any DDL or DML.
+
+    Crucially verifies via the live connection that current_database() is
+    strictly 'analytiq_test_db'. If connected to 'analytiq_db' or any other
+    database, this immediately raises a RuntimeError to prevent data loss.
+    """
+    current_db = (await conn.execute(text("SELECT current_database()"))).scalar()
+    if current_db != APPROVED_TEST_DATABASE:
+        raise RuntimeError(
+            f"SAFETY GUARD ACTIVATED: Expected test database '{APPROVED_TEST_DATABASE}', "
+            f"but connected to '{current_db}'! Refusing to run destructive operations."
+        )
+
+
 async def ensure_test_database_exists() -> None:
     """Ensure the isolated test database (analytiq_test_db) exists on PostgreSQL."""
     settings = get_settings()
@@ -102,12 +120,7 @@ async def setup_test_db() -> AsyncGenerator[None, None]:
 
         # Enforce explicit test database identity guard before any DDL or DML
         async with engine.connect() as conn:
-            current_db = (await conn.execute(text("SELECT current_database()"))).scalar()
-            if current_db != "analytiq_test_db":
-                raise RuntimeError(
-                    f"SAFETY GUARD ACTIVATED: Expected test database 'analytiq_test_db', "
-                    f"but connected to '{current_db}'! Refusing to run destructive operations."
-                )
+            await verify_test_database_identity(conn)
 
         if not _test_db_initialized:
             async with engine.begin() as conn:

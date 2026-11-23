@@ -2,6 +2,7 @@
 
 import csv
 import logging
+import zipfile
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -227,6 +228,37 @@ class DatasetParser:
         """Parse XLSX workbook, enforce limits, infer schema, and write Parquet."""
         max_rows = self._settings.max_parsed_rows
         max_cols = self._settings.max_parsed_columns
+
+        # Verify underlying ZIP archive structure and enforce safety boundaries (Zip Bomb guard)
+        if not zipfile.is_zipfile(source_path):
+            raise ParseValidationError(
+                "Invalid spreadsheet archive. File is not a valid zip archive."
+            )
+
+        try:
+            with zipfile.ZipFile(source_path, "r") as zf:
+                infolist = zf.infolist()
+                if len(infolist) > 500:
+                    raise ParseValidationError("XLSX archive contains excessive number of entries.")
+
+                total_uncompressed = sum(info.file_size for info in infolist)
+                max_uncompressed_bytes = 100 * 1024 * 1024  # 100 MiB safety ceiling
+                if total_uncompressed > max_uncompressed_bytes:
+                    uncomp_mib = total_uncompressed // (1024 * 1024)
+                    raise ParseValidationError(
+                        f"Excel archive decompressed size ({uncomp_mib} MiB) "
+                        "exceeds safety limit of 100 MiB."
+                    )
+
+                for info in infolist:
+                    if info.filename.startswith(("/", "\\")) or ".." in info.filename:
+                        raise ParseValidationError(
+                            "Excel archive contains illegal member path traversal."
+                        )
+        except ParseValidationError:
+            raise
+        except Exception as exc:
+            raise ParseValidationError(f"Malformed XLSX zip archive: {exc}") from exc
 
         try:
             # openpyxl read_only=True and data_only=True prevents formula execution and saves memory
