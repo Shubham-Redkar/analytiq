@@ -1,0 +1,39 @@
+# ---------------------------------------------------------------------------
+# AnalytIQ – Local Development Infrastructure
+#
+# Services:
+#   db  – PostgreSQL 16 for application data
+#
+# Usage:
+#   docker compose up -d          # start services
+#   docker compose ps             # check status
+#   docker compose logs -f db     # stream db logs
+#   docker compose down           # stop services
+#   docker compose down -v        # stop and remove volumes (destructive)
+# ---------------------------------------------------------------------------
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: analytiq_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-analytiq_db}
+      POSTGRES_USER: ${POSTGRES_USER:-analytiq}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_local_only}
+    ports:
+      # Bind only to localhost to prevent unintended external exposure.
+      # Port 5433 is published on the host to avoid conflicts with existing local PostgreSQL instances.
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - analytiq_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-analytiq} -d ${POSTGRES_DB:-analytiq_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  analytiq_postgres_data:
+    name: analytiq_postgres_data
