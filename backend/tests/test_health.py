@@ -1,19 +1,8 @@
 """Tests for the health and readiness endpoints."""
 
-from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, patch
 
-import pytest
-from app.main import app
-from httpx import ASGITransport, AsyncClient
-
-
-@pytest.fixture
-async def client() -> AsyncGenerator[AsyncClient, None]:
-    """Async HTTP test client for the FastAPI application."""
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as ac:
-        yield ac
-
+from httpx import AsyncClient
 
 # ---------------------------------------------------------------------------
 # Health endpoint
