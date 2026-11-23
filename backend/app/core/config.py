@@ -39,8 +39,8 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     # Database
     # ------------------------------------------------------------------
-    postgres_host: str = Field(default="localhost", description="PostgreSQL hostname.")
-    postgres_port: int = Field(default=5432, description="PostgreSQL port.")
+    postgres_host: str = Field(default="127.0.0.1", description="PostgreSQL hostname.")
+    postgres_port: int = Field(default=5433, description="PostgreSQL port.")
     postgres_db: str = Field(default="analytiq_db", description="PostgreSQL database name.")
     postgres_user: str = Field(default="analytiq", description="PostgreSQL username.")
     postgres_password: str = Field(default="", description="PostgreSQL password.")

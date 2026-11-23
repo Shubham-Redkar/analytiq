@@ -38,7 +38,7 @@ jobs:
           POSTGRES_USER: analytiq
           POSTGRES_PASSWORD: ci_test_password
         ports:
-          - 5432:5432
+          - 5433:5432
         options: >-
           --health-cmd "pg_isready -U analytiq -d analytiq_db"
           --health-interval 10s
@@ -46,8 +46,8 @@ jobs:
           --health-retries 5
 
     env:
-      POSTGRES_HOST: localhost
-      POSTGRES_PORT: 5432
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: 5433
       POSTGRES_DB: analytiq_db
       POSTGRES_USER: analytiq
       POSTGRES_PASSWORD: ci_test_password

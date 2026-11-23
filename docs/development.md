@@ -106,8 +106,8 @@ Default configuration values:
 | `DEBUG` | `true` | Enable debug mode and Swagger docs |
 | `API_HOST` | `0.0.0.0` | Bind address for Uvicorn |
 | `API_PORT` | `8000` | Port for the API server |
-| `POSTGRES_HOST` | `localhost` | PostgreSQL host |
-| `POSTGRES_PORT` | `5432` | PostgreSQL port |
+| `POSTGRES_HOST` | `127.0.0.1` | PostgreSQL host |
+| `POSTGRES_PORT` | `5433` | PostgreSQL host port (mapped to container 5432) |
 | `POSTGRES_DB` | `analytiq_db` | Application database |
 | `POSTGRES_USER` | `analytiq` | Database user |
 | `POSTGRES_PASSWORD` | `changeme_local_only` | Development password |
@@ -221,10 +221,10 @@ GitHub Actions CI (`.github/workflows/ci.yml`) executes these identical checks a
 
 ## 9. Troubleshooting
 
-### Port 5432 Conflict
-If another local PostgreSQL instance is running on port 5432:
-1. In `docker-compose.yml` or via root `.env`, set `POSTGRES_PORT=5433`.
-2. In `backend/.env`, set `POSTGRES_PORT=5433`.
+### Port Conflict Configuration
+AnalytIQ maps PostgreSQL to host port `5433` by default to avoid conflicts with existing PostgreSQL instances running on port `5432` in WSL2 Ubuntu. If port 5433 is also occupied:
+1. In `docker-compose.yml` or via root `.env`, override `POSTGRES_PORT=5434`.
+2. In `backend/.env`, set `POSTGRES_PORT=5434`.
 
 ### Docker Daemon Not Accessible in WSL2
 If `docker: command not found` or `Cannot connect to the Docker daemon`:
