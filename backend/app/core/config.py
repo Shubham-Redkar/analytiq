@@ -61,6 +61,34 @@ class Settings(BaseSettings):
         description="Allowed CORS origins (comma-separated string or JSON list).",
     )
 
+    # ------------------------------------------------------------------
+    # Authentication & Session
+    # ------------------------------------------------------------------
+    session_cookie_name: str = Field(
+        default="analytiq_session",
+        description="Name of the HTTP-only session cookie.",
+    )
+    session_expire_days: int = Field(
+        default=7,
+        description="Session validity lifetime in days.",
+    )
+    cookie_secure: bool = Field(
+        default=False,
+        description="Enable Secure flag on cookies (HTTPS required).",
+    )
+    cookie_samesite: str = Field(
+        default="lax",
+        description="SameSite policy for session cookies (lax, strict, none).",
+    )
+    max_login_attempts: int = Field(
+        default=5,
+        description="Maximum consecutive failed login attempts before lockout.",
+    )
+    lockout_duration_minutes: int = Field(
+        default=15,
+        description="Duration of account lockout in minutes.",
+    )
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, value: object) -> list[str]:
