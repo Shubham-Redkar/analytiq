@@ -12,6 +12,8 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.36",
     "asyncpg>=0.30.0",
     "alembic>=1.14.0",
+    "argon2-cffi>=25.1.0",
+    "email-validator>=2.4.0",
 ]
 
 [project.optional-dependencies]
@@ -63,6 +65,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101", "ANN", "S105", "S106"]
+"migrations/versions/*.py" = ["E501", "UP", "I", "W291", "ANN"]
 
 [tool.ruff.format]
 quote-style = "double"

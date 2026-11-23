@@ -36,11 +36,11 @@ config.set_main_option("sqlalchemy.url", _settings.database_url)
 
 # ---------------------------------------------------------------------------
 # SQLAlchemy MetaData for autogenerate support.
-# Import your declarative Base here once models exist, e.g.:
-#   from app.db.base import Base
-#   target_metadata = Base.metadata
 # ---------------------------------------------------------------------------
-target_metadata = None
+import app.models  # noqa: E402, F401
+from app.db.base import Base  # noqa: E402
+
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
