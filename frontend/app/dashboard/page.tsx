@@ -163,28 +163,33 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Analyses Card (Explicitly honest about M3) */}
+          {/* Analyses Card (Natural product language without milestone jargon) */}
           <div className="rounded-2xl border border-border bg-card p-6 shadow-xs flex flex-col justify-between">
             <div>
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-                  <LineChart className="h-5 w-5 text-foreground/80" />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+                    <LineChart className="h-5 w-5 text-foreground/80" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-card-foreground">Analyses</h3>
+                    <p className="text-xs sm:text-sm text-muted-foreground">Analytical sessions & reports</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-base font-semibold text-card-foreground">Analyses</h3>
-                  <p className="text-xs sm:text-sm text-muted-foreground">Analytical sessions & reports</p>
-                </div>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted text-muted-foreground">
+                  Coming soon
+                </span>
               </div>
               <div className="mt-5 rounded-xl border border-border/60 bg-muted/30 px-4 py-3">
                 <span className="text-xs sm:text-sm font-medium text-muted-foreground">
-                  No analytical sessions yet (Available in M3)
+                  Explore your datasets with intelligent analysis tools.
                 </span>
               </div>
             </div>
 
             <div className="mt-5 pt-4 border-t border-border/60">
               <span className="text-xs sm:text-sm text-muted-foreground">
-                Deterministic analytics engine in development.
+                Automated analytical reasoning and report generation will be available here.
               </span>
             </div>
           </div>

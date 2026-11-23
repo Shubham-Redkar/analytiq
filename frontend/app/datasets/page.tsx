@@ -289,12 +289,13 @@ export default function DatasetsListPage() {
               Delete Dataset
             </h3>
             <p className="mt-2 text-sm text-muted-foreground">
-              Are you sure you want to delete <span className="font-semibold text-foreground">&quot;{datasetToDelete.name}&quot;</span>? This will permanently remove its metadata and stored data files.
+              Are you sure you want to delete <span className="font-semibold text-foreground">&quot;{datasetToDelete.name}&quot;</span>? This action cannot be undone and will permanently remove the dataset, its metadata, and normalized storage files.
             </p>
 
             {deleteError && (
-              <div className="mt-4 rounded-lg bg-destructive/10 p-3 text-xs text-destructive">
-                {deleteError}
+              <div className="mt-4 rounded-lg bg-destructive/10 p-3 text-xs text-destructive flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{deleteError}</span>
               </div>
             )}
 

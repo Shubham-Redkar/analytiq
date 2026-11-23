@@ -27,6 +27,7 @@ class DatasetResponse(BaseModel):
         alias="schema_json",
         serialization_alias="schema_json",
     )
+    quality_summary: dict[str, Any] | None = None
 
 
 class DatasetListResponse(BaseModel):
@@ -61,6 +62,7 @@ class DatasetQualityResponse(BaseModel):
 
     summary: dict[str, Any]
     quality_findings: list[dict[str, Any]]
+    columns_breakdown: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class DatasetDeleteResponse(BaseModel):

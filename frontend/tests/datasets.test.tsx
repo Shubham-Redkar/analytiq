@@ -8,8 +8,8 @@ import DatasetsListPage from "../app/datasets/page";
 import UploadDatasetPage from "../app/datasets/upload/page";
 import { DatasetDetailContent } from "../app/datasets/[id]/page";
 import * as authContext from "../context/auth-context";
-import { api } from "../lib/api";
-import type { Dataset } from "../lib/types";
+import { api, ApiError } from "../lib/api";
+import type { Dataset, DatasetQualityResponse } from "../lib/types";
 
 const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -37,6 +37,16 @@ const sampleDataset: Dataset = {
   status: "ready",
   created_at: "2026-01-01T10:00:00Z",
   updated_at: "2026-01-01T10:00:00Z",
+  quality_summary: {
+    total_rows: 100,
+    total_columns: 3,
+    duplicate_rows: 2,
+    missing_cells: 5,
+    missing_percentage: 1.67,
+    columns_with_missing: 1,
+    all_null_columns_count: 0,
+    constant_columns_count: 0,
+  },
   schema_json: {
     columns: [
       { name: "id", logical_type: "integer", duckdb_type: "BIGINT", nullable: false },
@@ -46,6 +56,40 @@ const sampleDataset: Dataset = {
     row_count: 100,
     column_count: 3,
   },
+};
+
+const sampleQualityResponse: DatasetQualityResponse = {
+  summary: {
+    total_rows: 100,
+    total_columns: 3,
+    duplicate_rows: 2,
+    missing_cells: 5,
+    missing_percentage: 1.67,
+    columns_with_missing: 1,
+    all_null_columns_count: 0,
+    constant_columns_count: 0,
+  },
+  quality_findings: [
+    {
+      type: "duplicate_rows",
+      severity: "warning",
+      message: "2 duplicate rows detected across dataset.",
+    },
+    {
+      type: "missing_values",
+      severity: "warning",
+      message: "1 column contains missing values, affecting 5 cells.",
+    },
+  ],
+  columns_breakdown: [
+    {
+      name: "amount",
+      logical_type: "float",
+      null_count: 5,
+      null_percentage: 5.0,
+      distinct_count: 90,
+    },
+  ],
 };
 
 describe("M2 Dataset Experience", () => {
@@ -97,7 +141,7 @@ describe("M2 Dataset Experience", () => {
       });
     });
 
-    it("opens delete confirmation modal and triggers deletion", async () => {
+    it("opens delete confirmation modal with dataset name and triggers deletion", async () => {
       vi.spyOn(api, "listDatasets").mockResolvedValue({
         items: [sampleDataset],
         total: 1,
@@ -123,14 +167,45 @@ describe("M2 Dataset Experience", () => {
       expect(trashButton).toBeDefined();
       await userEvent.click(trashButton!);
 
-      // Modal appears
+      // Modal appears with dataset name
       expect(screen.getByText(/are you sure you want to delete/i)).toBeInTheDocument();
+      expect(screen.getByText(/"Q4 Transactions"/i)).toBeInTheDocument();
 
       // Confirm delete
       const confirmButton = screen.getByRole("button", { name: /delete permanently/i });
       await userEvent.click(confirmButton);
 
       expect(mockDelete).toHaveBeenCalledWith(sampleDataset.id);
+    });
+
+    it("displays error banner when dataset deletion fails", async () => {
+      vi.spyOn(api, "listDatasets").mockResolvedValue({
+        items: [sampleDataset],
+        total: 1,
+        page: 1,
+        page_size: 10,
+        total_pages: 1,
+      });
+      vi.spyOn(api, "deleteDataset").mockRejectedValue(
+        new ApiError("Database connection dropped", 500)
+      );
+
+      render(<DatasetsListPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Q4 Transactions")).toBeInTheDocument();
+      });
+
+      const deleteButtons = screen.getAllByRole("button");
+      const trashButton = deleteButtons.find((btn) => btn.querySelector("svg.lucide-trash-2"));
+      await userEvent.click(trashButton!);
+
+      const confirmButton = screen.getByRole("button", { name: /delete permanently/i });
+      await userEvent.click(confirmButton);
+
+      await waitFor(() => {
+        expect(screen.getByText("Database connection dropped")).toBeInTheDocument();
+      });
     });
   });
 
@@ -176,13 +251,32 @@ describe("M2 Dataset Experience", () => {
   });
 
   describe("DatasetDetailPage", () => {
-    it("renders dataset detail with tabs and loads preview", async () => {
+    it("renders Missing Values KPI card instead of internal Parquet details", async () => {
+      vi.spyOn(api, "getDataset").mockResolvedValue(sampleDataset);
+      vi.spyOn(api, "getDatasetPreview").mockResolvedValue({
+        columns: [],
+        rows: [],
+        total_rows: 0,
+        offset: 0,
+        limit: 25,
+      });
+
+      render(<DatasetDetailContent id={sampleDataset.id} />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Missing Values")).toBeInTheDocument();
+        expect(screen.getByText("5")).toBeInTheDocument();
+        expect(screen.getByText("(1.67%)")).toBeInTheDocument();
+      });
+    });
+
+    it("renders friendly type labels and right-aligned numeric headers in preview", async () => {
       vi.spyOn(api, "getDataset").mockResolvedValue(sampleDataset);
       vi.spyOn(api, "getDatasetPreview").mockResolvedValue({
         columns: [
-          { name: "id", duckdb_type: "BIGINT" },
-          { name: "item", duckdb_type: "VARCHAR" },
-          { name: "amount", duckdb_type: "DOUBLE" },
+          { name: "id", duckdb_type: "BIGINT", logical_type: "integer" },
+          { name: "item", duckdb_type: "VARCHAR", logical_type: "string" },
+          { name: "amount", duckdb_type: "DOUBLE", logical_type: "float" },
         ],
         rows: [
           { id: 1, item: "Widget", amount: 19.99 },
@@ -196,13 +290,19 @@ describe("M2 Dataset Experience", () => {
       render(<DatasetDetailContent id={sampleDataset.id} />);
 
       await waitFor(() => {
-        expect(screen.getByRole("heading", { name: "Q4 Transactions" })).toBeInTheDocument();
         expect(screen.getByText("Widget")).toBeInTheDocument();
-        expect(screen.getByText("null")).toBeInTheDocument();
       });
+
+      // Friendly type badges
+      expect(screen.getByText("Integer")).toBeInTheDocument();
+      expect(screen.getByText("Text")).toBeInTheDocument();
+      expect(screen.getByText("Decimal")).toBeInTheDocument();
+
+      // Distinct null styling
+      expect(screen.getByText("null")).toHaveClass("italic");
     });
 
-    it("switches to Schema tab", async () => {
+    it("filters columns by search query in Profiling tab", async () => {
       vi.spyOn(api, "getDataset").mockResolvedValue(sampleDataset);
       vi.spyOn(api, "getDatasetPreview").mockResolvedValue({
         columns: [],
@@ -211,6 +311,33 @@ describe("M2 Dataset Experience", () => {
         offset: 0,
         limit: 25,
       });
+      vi.spyOn(api, "getDatasetProfile").mockResolvedValue({
+        summary: sampleDataset.quality_summary!,
+        columns: [
+          {
+            name: "id",
+            logical_type: "integer",
+            null_count: 0,
+            null_percentage: 0,
+            distinct_count: 100,
+            min: 1,
+            max: 100,
+            mean: 50.5,
+            top_values: [],
+          },
+          {
+            name: "amount",
+            logical_type: "float",
+            null_count: 5,
+            null_percentage: 5.0,
+            distinct_count: 90,
+            min: 10.0,
+            max: 500.0,
+            mean: 120.4,
+            top_values: [],
+          },
+        ],
+      });
 
       render(<DatasetDetailContent id={sampleDataset.id} />);
 
@@ -218,11 +345,101 @@ describe("M2 Dataset Experience", () => {
         expect(screen.getByRole("heading", { name: "Q4 Transactions" })).toBeInTheDocument();
       });
 
-      const schemaTab = screen.getByRole("button", { name: /schema definition/i });
-      await userEvent.click(schemaTab);
+      // Switch to Profile tab
+      const profileTab = screen.getByRole("button", { name: /column profiling/i });
+      await userEvent.click(profileTab);
 
-      expect(screen.getByText("DuckDB Engine Type")).toBeInTheDocument();
-      expect(screen.getByText("BIGINT")).toBeInTheDocument();
+      // Verify initial columns
+      expect(await screen.findByRole("heading", { name: "id" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "amount" })).toBeInTheDocument();
+
+      // Type search filter
+      const searchInput = screen.getByLabelText(/search columns by name/i);
+      await userEvent.type(searchInput, "amou");
+
+      expect(screen.queryByRole("heading", { name: "id" })).not.toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "amount" })).toBeInTheDocument();
+
+      // Search with no matches
+      await userEvent.clear(searchInput);
+      await userEvent.type(searchInput, "nonexistent");
+
+      expect(screen.getByText(/no columns match your filter criteria/i)).toBeInTheDocument();
+    });
+
+    it("displays discrete categorical frequency summary for discrete integer columns", async () => {
+      vi.spyOn(api, "getDataset").mockResolvedValue(sampleDataset);
+      vi.spyOn(api, "getDatasetPreview").mockResolvedValue({
+        columns: [],
+        rows: [],
+        total_rows: 0,
+        offset: 0,
+        limit: 25,
+      });
+      vi.spyOn(api, "getDatasetProfile").mockResolvedValue({
+        summary: sampleDataset.quality_summary!,
+        columns: [
+          {
+            name: "status_code",
+            logical_type: "integer",
+            null_count: 0,
+            null_percentage: 0,
+            distinct_count: 3,
+            min: 1,
+            max: 3,
+            mean: 1.8,
+            is_discrete: true,
+            top_values: [
+              { value: "1", count: 60 },
+              { value: "2", count: 30 },
+              { value: "3", count: 10 },
+            ],
+          },
+        ],
+      });
+
+      render(<DatasetDetailContent id={sampleDataset.id} />);
+
+      await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Q4 Transactions" })).toBeInTheDocument();
+      });
+
+      const profileTab = screen.getByRole("button", { name: /column profiling/i });
+      await userEvent.click(profileTab);
+
+      await waitFor(() => {
+        expect(screen.getByText(/descriptive frequency summary:/i)).toBeInTheDocument();
+        expect(screen.getByText(/arithmetic mean:/i)).toBeInTheDocument();
+      });
+    });
+
+    it("displays actionable per-column missing values breakdown in Quality tab", async () => {
+      vi.spyOn(api, "getDataset").mockResolvedValue(sampleDataset);
+      vi.spyOn(api, "getDatasetPreview").mockResolvedValue({
+        columns: [],
+        rows: [],
+        total_rows: 0,
+        offset: 0,
+        limit: 25,
+      });
+      vi.spyOn(api, "getDatasetQuality").mockResolvedValue(sampleQualityResponse);
+
+      render(<DatasetDetailContent id={sampleDataset.id} />);
+
+      await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Q4 Transactions" })).toBeInTheDocument();
+      });
+
+      const qualityTab = screen.getByRole("button", { name: /data quality/i });
+      await userEvent.click(qualityTab);
+
+      await waitFor(() => {
+        expect(screen.getByText(/missing values by column/i)).toBeInTheDocument();
+        expect(screen.getByText("amount")).toBeInTheDocument();
+        expect(screen.getByText("5%")).toBeInTheDocument();
+        expect(screen.getByText(/1 column contains missing values, affecting 5 cells/i)).toBeInTheDocument();
+        expect(screen.getByText(/understanding quality indicators/i)).toBeInTheDocument();
+      });
     });
   });
 });

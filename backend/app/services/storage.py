@@ -40,7 +40,11 @@ class StorageService:
 
     def _validate_path_within_root(self, path: Path) -> Path:
         """Verify that resolved path resides strictly within the approved storage root."""
+        if path.is_symlink():
+            raise StorageSecurityError(f"Symlinks are prohibited: {path}")
         resolved = path.resolve()
+        if resolved.is_symlink():
+            raise StorageSecurityError(f"Symlinks are prohibited: {resolved}")
         try:
             resolved.relative_to(self._root_path)
         except ValueError as err:

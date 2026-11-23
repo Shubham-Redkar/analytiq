@@ -3,9 +3,13 @@
 import io
 import uuid
 from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
 import openpyxl
+import pytest
 from httpx import AsyncClient
+
+from tests.conftest import verify_test_database_identity
 
 
 def make_csv_bytes(header: list[str], rows: list[list[Any]], delimiter: str = ",") -> bytes:
@@ -426,3 +430,154 @@ class TestDatasetDeletion:
         await register_and_login(client, "nonexistent@example.com", "Deleter")
         response = await client.delete(f"/api/v1/datasets/{uuid.uuid4()}")
         assert response.status_code == 404
+
+
+class TestDatasetRefinementsAndSecurityHardening:
+    """Targeted regression tests for M2 UX, Quality, and Security Hardening."""
+
+    async def test_quality_summary_included_on_dataset_detail(self, client: AsyncClient) -> None:
+        """GET /datasets/{id} returns quality_summary populated from profile_json."""
+        await register_and_login(client, "summary.user@example.com", "Summary User")
+        csv_bytes = make_csv_bytes(
+            ["id", "score"],
+            [
+                [1, 95],
+                [2, None],
+                [3, 80],
+            ],
+        )
+        up_res = await client.post(
+            "/api/v1/datasets",
+            files={"file": ("scores.csv", csv_bytes, "text/csv")},
+        )
+        ds_id = up_res.json()["id"]
+
+        detail_res = await client.get(f"/api/v1/datasets/{ds_id}")
+        assert detail_res.status_code == 200
+        data = detail_res.json()
+        assert "quality_summary" in data
+        assert data["quality_summary"] is not None
+        assert data["quality_summary"]["missing_cells"] == 1
+        assert data["quality_summary"]["total_rows"] == 3
+        assert data["quality_summary"]["columns_with_missing"] == 1
+
+    async def test_quality_columns_breakdown_and_grammatical_phrasing(
+        self, client: AsyncClient
+    ) -> None:
+        """GET /datasets/{id}/quality returns columns_breakdown and sound findings."""
+        await register_and_login(client, "quality.user@example.com", "Quality User")
+        csv_bytes = make_csv_bytes(
+            ["col_a", "col_b", "col_c"],
+            [
+                ["val1", None, None],
+                ["val2", "b_val", None],
+                ["val3", "b_val2", "c_val"],
+            ],
+        )
+        up_res = await client.post(
+            "/api/v1/datasets",
+            files={"file": ("breakdown.csv", csv_bytes, "text/csv")},
+        )
+        ds_id = up_res.json()["id"]
+
+        quality_res = await client.get(f"/api/v1/datasets/{ds_id}/quality")
+        assert quality_res.status_code == 200
+        q_data = quality_res.json()
+
+        assert "columns_breakdown" in q_data
+        breakdown = q_data["columns_breakdown"]
+        assert len(breakdown) == 2
+        # col_c has 2 nulls (66.67%), col_b has 1 null (33.33%) - must be sorted descending
+        assert breakdown[0]["name"] == "col_c"
+        assert breakdown[0]["null_count"] == 2
+        assert breakdown[1]["name"] == "col_b"
+        assert breakdown[1]["null_count"] == 1
+
+        # Check grammatical finding message
+        findings = q_data["quality_findings"]
+        missing_finding = next(f for f in findings if f["type"] == "missing_values")
+        assert "2 columns contain missing values, affecting 3 cells." in missing_finding["message"]
+
+    async def test_discrete_integer_profiling_and_high_cardinality_text(
+        self, client: AsyncClient
+    ) -> None:
+        """Discrete integers get frequency distribution; high-cardinality text handling."""
+        await register_and_login(client, "titanic.analyst@example.com", "Titanic Analyst")
+
+        # 25 rows: survived is 0 or 1 (discrete int), passenger_name is unique
+        rows = [[i % 2, f"Passenger {i}"] for i in range(25)]
+        csv_bytes = make_csv_bytes(["survived", "passenger_name"], rows)
+
+        up_res = await client.post(
+            "/api/v1/datasets",
+            files={"file": ("titanic_sample.csv", csv_bytes, "text/csv")},
+        )
+        ds_id = up_res.json()["id"]
+
+        profile_res = await client.get(f"/api/v1/datasets/{ds_id}/profile")
+        assert profile_res.status_code == 200
+        p_data = profile_res.json()
+
+        cols = {c["name"]: c for c in p_data["columns"]}
+
+        # Discrete integer column
+        survived_col = cols["survived"]
+        assert survived_col["logical_type"] == "integer"
+        assert survived_col.get("is_discrete") is True
+        assert len(survived_col["top_values"]) == 2
+
+        # High cardinality text column
+        name_col = cols["passenger_name"]
+        assert name_col["logical_type"] == "string"
+        assert name_col.get("is_high_cardinality") is True
+        # For unique strings, top_values should be suppressed to avoid random alphabetical picks
+        assert len(name_col["top_values"]) == 0
+
+    async def test_corrupted_xlsx_rejected(self, client: AsyncClient) -> None:
+        """Non-zip or malformed XLSX uploads are rejected with 422."""
+        await register_and_login(client, "security.user@example.com", "Security User")
+        fake_xlsx = b"PK\x03\x04not-a-valid-zip-content"
+        xlsx_mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        res = await client.post(
+            "/api/v1/datasets",
+            files={"file": ("malicious.xlsx", fake_xlsx, xlsx_mime)},
+        )
+        assert res.status_code == 422
+        assert "spreadsheet archive" in res.json()["detail"].lower()
+
+    async def test_test_database_identity_guard_blocks_destructive_sql(self) -> None:
+        """verify_test_database_identity raises RuntimeError if connected to non-test database."""
+        # Mock connection connected to development database analytiq_db
+        mock_conn_dev = AsyncMock()
+        mock_result_dev = MagicMock()
+        mock_result_dev.scalar.return_value = "analytiq_db"
+        mock_conn_dev.execute.return_value = mock_result_dev
+
+        with pytest.raises(RuntimeError, match="SAFETY GUARD ACTIVATED"):
+            await verify_test_database_identity(mock_conn_dev)
+
+        # Mock connection connected to authorized test database analytiq_test_db
+        mock_conn_test = AsyncMock()
+        mock_result_test = MagicMock()
+        mock_result_test.scalar.return_value = "analytiq_test_db"
+        mock_conn_test.execute.return_value = mock_result_test
+
+        # Must not raise
+        await verify_test_database_identity(mock_conn_test)
+
+    async def test_preview_includes_logical_types(self, client: AsyncClient) -> None:
+        """Preview response enriches columns with inferred logical types."""
+        await register_and_login(client, "preview.user@example.com", "Preview User")
+        csv_bytes = make_csv_bytes(["num", "text"], [[100, "hello"]])
+        up_res = await client.post(
+            "/api/v1/datasets",
+            files={"file": ("preview_test.csv", csv_bytes, "text/csv")},
+        )
+        ds_id = up_res.json()["id"]
+
+        prev_res = await client.get(f"/api/v1/datasets/{ds_id}/preview")
+        assert prev_res.status_code == 200
+        prev_data = prev_res.json()
+        cols = {c["name"]: c for c in prev_data["columns"]}
+        assert cols["num"]["logical_type"] == "integer"
+        assert cols["text"]["logical_type"] == "string"
