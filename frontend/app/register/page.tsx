@@ -48,13 +48,13 @@ export default function RegisterPage() {
   };
 
   return (
-    <main className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
+    <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center p-4 sm:p-6">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
         <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold tracking-tight text-card-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-card-foreground">
             Create an AnalytIQ Account
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="mt-2 text-sm sm:text-base text-muted-foreground">
             Start analyzing data with verified, evidence-grounded intelligence
           </p>
         </div>
@@ -62,17 +62,17 @@ export default function RegisterPage() {
         {error && (
           <div
             role="alert"
-            className="mb-4 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive"
+            className="mb-5 rounded-lg border border-destructive/30 bg-destructive/10 p-3.5 text-sm sm:text-[15px] font-medium text-destructive"
           >
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
           <div>
             <label
               htmlFor="displayName"
-              className="block text-sm font-medium text-foreground mb-1"
+              className="block text-sm sm:text-[15px] font-medium text-foreground mb-1.5"
             >
               Full name / Display name
             </label>
@@ -84,14 +84,14 @@ export default function RegisterPage() {
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder="Alex Johnson"
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-xs placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full h-10 sm:h-11 rounded-lg border border-input bg-background px-3.5 py-2 text-sm sm:text-base text-foreground shadow-2xs placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-ring transition-colors"
             />
           </div>
 
           <div>
             <label
               htmlFor="email"
-              className="block text-sm font-medium text-foreground mb-1"
+              className="block text-sm sm:text-[15px] font-medium text-foreground mb-1.5"
             >
               Email address
             </label>
@@ -103,14 +103,14 @@ export default function RegisterPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="alex@example.com"
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-xs placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full h-10 sm:h-11 rounded-lg border border-input bg-background px-3.5 py-2 text-sm sm:text-base text-foreground shadow-2xs placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-ring transition-colors"
             />
           </div>
 
           <div>
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-foreground mb-1"
+              className="block text-sm sm:text-[15px] font-medium text-foreground mb-1.5"
             >
               Password (min. 8 characters)
             </label>
@@ -123,14 +123,14 @@ export default function RegisterPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-xs placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full h-10 sm:h-11 rounded-lg border border-input bg-background px-3.5 py-2 text-sm sm:text-base text-foreground shadow-2xs placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-ring transition-colors"
             />
           </div>
 
           <div>
             <label
               htmlFor="confirmPassword"
-              className="block text-sm font-medium text-foreground mb-1"
+              className="block text-sm sm:text-[15px] font-medium text-foreground mb-1.5"
             >
               Confirm Password
             </label>
@@ -143,24 +143,24 @@ export default function RegisterPage() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-xs placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full h-10 sm:h-11 rounded-lg border border-input bg-background px-3.5 py-2 text-sm sm:text-base text-foreground shadow-2xs placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-ring transition-colors"
             />
           </div>
 
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="w-full cursor-pointer mt-2"
+            className="w-full h-10 sm:h-11 text-sm sm:text-base font-semibold cursor-pointer mt-2"
           >
             {isSubmitting ? "Creating account..." : "Create Account"}
           </Button>
         </form>
 
-        <div className="mt-6 text-center text-sm text-muted-foreground">
+        <div className="mt-6 text-center text-sm sm:text-[15px] text-muted-foreground">
           Already have an account?{" "}
           <Link
             href="/login"
-            className="font-medium text-primary hover:underline"
+            className="font-semibold text-primary hover:underline transition-colors"
           >
             Sign in
           </Link>
