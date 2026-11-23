@@ -200,7 +200,7 @@ describe("Dashboard M2 Dynamic Integration & UX", () => {
     expect(uploadButtons.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("8. analyses card remains honest about unavailable M3 functionality", () => {
+  it("8. analyses card uses polished product language without milestone jargon", () => {
     vi.spyOn(authContext, "useAuth").mockReturnValue({
       user: mockUser,
       loading: false,
@@ -218,7 +218,8 @@ describe("Dashboard M2 Dynamic Integration & UX", () => {
     });
 
     render(<DashboardPage />);
-    expect(screen.getByText(/available in m3/i)).toBeInTheDocument();
+    expect(screen.getByText(/coming soon/i)).toBeInTheDocument();
+    expect(screen.getByText(/explore your datasets with intelligent analysis tools/i)).toBeInTheDocument();
   });
 
   it("9. dashboard redirects to login when unauthenticated", () => {
