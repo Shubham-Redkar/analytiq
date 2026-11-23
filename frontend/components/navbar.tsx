@@ -22,15 +22,12 @@ export function Navbar() {
             <span className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
               AnalytIQ
             </span>
-            <span className="hidden sm:inline-flex rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-              v1.0-dev
-            </span>
           </Link>
           {user && (
             <nav className="flex items-center gap-6 text-sm sm:text-base font-medium">
               <Link
                 href="/dashboard"
-                className="text-muted-foreground transition-colors hover:text-foreground"
+                className="text-foreground transition-colors hover:text-foreground font-semibold"
               >
                 Dashboard
               </Link>

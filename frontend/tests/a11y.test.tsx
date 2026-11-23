@@ -130,13 +130,15 @@ describe("Accessibility & Semantic Hierarchy Verification", () => {
       render(<DashboardPage />);
 
       const h1 = screen.getByRole("heading", { level: 1 });
-      expect(h1).toHaveTextContent(/welcome, alex johnson/i);
+      expect(h1).toHaveTextContent(/welcome back, alex johnson/i);
 
       const h2 = screen.getByRole("heading", { level: 2 });
-      expect(h2).toHaveTextContent(/user identity & ownership foundation/i);
+      expect(h2).toHaveTextContent(/workspace overview/i);
 
-      const h3 = screen.getByRole("heading", { level: 3 });
-      expect(h3).toHaveTextContent(/no datasets connected yet/i);
+      const h3s = screen.getAllByRole("heading", { level: 3 });
+      expect(h3s.map((h) => h.textContent)).toEqual(
+        expect.arrayContaining(["Datasets", "Analyses", "Your workspace is ready"])
+      );
     });
   });
 });
