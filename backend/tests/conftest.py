@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import NullPool
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ def get_test_engine() -> AsyncEngine:
         )
         _test_engine = create_async_engine(
             test_db_url,
-            pool_pre_ping=True,
+            poolclass=NullPool,
             echo=False,
         )
     return _test_engine
@@ -99,15 +100,27 @@ async def setup_test_db() -> AsyncGenerator[None, None]:
         await ensure_test_database_exists()
         engine = get_test_engine()
 
+        # Enforce explicit test database identity guard before any DDL or DML
+        async with engine.connect() as conn:
+            current_db = (await conn.execute(text("SELECT current_database()"))).scalar()
+            if current_db != "analytiq_test_db":
+                raise RuntimeError(
+                    f"SAFETY GUARD ACTIVATED: Expected test database 'analytiq_test_db', "
+                    f"but connected to '{current_db}'! Refusing to run destructive operations."
+                )
+
         if not _test_db_initialized:
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
             _test_db_initialized = True
 
         async with engine.begin() as conn:
-            await conn.execute(text("TRUNCATE TABLE sessions, users RESTART IDENTITY CASCADE"))
+            await conn.execute(
+                text("TRUNCATE TABLE datasets, sessions, users RESTART IDENTITY CASCADE")
+            )
     except Exception as exc:
         logger.debug("Test database setup skipped: %s", exc)
+        raise
 
     # Override get_db_session in FastAPI app for all test requests
     app.dependency_overrides[get_db_session] = override_get_db_session

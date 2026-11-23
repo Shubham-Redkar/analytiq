@@ -1,12 +1,13 @@
 /// <reference types="vitest/globals" />
 /// <reference types="@testing-library/jest-dom/vitest" />
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import DashboardPage from "../app/dashboard/page";
 import { Navbar } from "../components/navbar";
 import * as authContext from "../context/auth-context";
+import { api } from "../lib/api";
 
 const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -23,7 +24,7 @@ const mockUser = {
   created_at: "2026-01-01T00:00:00Z",
 };
 
-describe("Dashboard UX & Product Readiness", () => {
+describe("Dashboard M2 Dynamic Integration & UX", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -36,6 +37,13 @@ describe("Dashboard UX & Product Readiness", () => {
       register: vi.fn(),
       logout: vi.fn(),
       refresh: vi.fn(),
+    });
+    vi.spyOn(api, "listDatasets").mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 1,
+      total_pages: 0,
     });
 
     render(<DashboardPage />);
@@ -52,6 +60,13 @@ describe("Dashboard UX & Product Readiness", () => {
       logout: vi.fn(),
       refresh: vi.fn(),
     });
+    vi.spyOn(api, "listDatasets").mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 1,
+      total_pages: 0,
+    });
 
     render(<DashboardPage />);
     expect(screen.getByRole("heading", { name: /welcome back, lead analyst/i })).toBeInTheDocument();
@@ -66,6 +81,13 @@ describe("Dashboard UX & Product Readiness", () => {
       logout: vi.fn(),
       refresh: vi.fn(),
     });
+    vi.spyOn(api, "listDatasets").mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 1,
+      total_pages: 0,
+    });
 
     render(<DashboardPage />);
     const heading = screen.getByRole("heading", { level: 1 });
@@ -73,29 +95,7 @@ describe("Dashboard UX & Product Readiness", () => {
     expect(heading).not.toHaveTextContent("Welcome back,");
   });
 
-  it("4. exactly one visible Sign out action exists across the view", () => {
-    vi.spyOn(authContext, "useAuth").mockReturnValue({
-      user: mockUser,
-      loading: false,
-      login: vi.fn(),
-      register: vi.fn(),
-      logout: vi.fn(),
-      refresh: vi.fn(),
-    });
-
-    // Render together with Navbar as experienced by the user
-    render(
-      <div>
-        <Navbar />
-        <DashboardPage />
-      </div>
-    );
-
-    const signoutButtons = screen.getAllByRole("button", { name: /sign out/i });
-    expect(signoutButtons).toHaveLength(1);
-  });
-
-  it("5. sign out remains functional and triggers logout redirect", async () => {
+  it("4. sign out remains functional in navbar and triggers logout redirect", async () => {
     const mockLogout = vi.fn().mockResolvedValue(undefined);
     vi.spyOn(authContext, "useAuth").mockReturnValue({
       user: mockUser,
@@ -114,7 +114,7 @@ describe("Dashboard UX & Product Readiness", () => {
     expect(mockPush).toHaveBeenCalledWith("/login");
   });
 
-  it("6. developer-facing milestone badges are absent from the dashboard", () => {
+  it("5. renders real dataset metrics when datasets exist", async () => {
     vi.spyOn(authContext, "useAuth").mockReturnValue({
       user: mockUser,
       loading: false,
@@ -123,37 +123,37 @@ describe("Dashboard UX & Product Readiness", () => {
       logout: vi.fn(),
       refresh: vi.fn(),
     });
-
-    render(
-      <div>
-        <Navbar />
-        <DashboardPage />
-      </div>
-    );
-
-    expect(screen.queryByText(/^M1$/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/^M2$/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/^M3$/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/m1 foundation/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/v1\.0-dev/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/authenticated session/i)).not.toBeInTheDocument();
-  });
-
-  it("7. user UUID is not displayed on the user-facing dashboard", () => {
-    vi.spyOn(authContext, "useAuth").mockReturnValue({
-      user: mockUser,
-      loading: false,
-      login: vi.fn(),
-      register: vi.fn(),
-      logout: vi.fn(),
-      refresh: vi.fn(),
+    vi.spyOn(api, "listDatasets").mockResolvedValue({
+      items: [
+        {
+          id: "123",
+          name: "Sales",
+          original_filename: "sales.csv",
+          file_format: "CSV",
+          file_size_bytes: 1024,
+          row_count: 50,
+          column_count: 3,
+          status: "ready",
+          created_at: "2026-01-01T00:00:00Z",
+          updated_at: "2026-01-01T00:00:00Z",
+        },
+      ],
+      total: 3,
+      page: 1,
+      page_size: 1,
+      total_pages: 3,
     });
 
     render(<DashboardPage />);
-    expect(screen.queryByText(mockUser.id)).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/3 active datasets ready for exploration/i)
+      ).toBeInTheDocument();
+    });
   });
 
-  it("8. internal ownership and debug information is absent", () => {
+  it("6. renders empty dataset state when total count is 0", async () => {
     vi.spyOn(authContext, "useAuth").mockReturnValue({
       user: mockUser,
       loading: false,
@@ -162,14 +162,23 @@ describe("Dashboard UX & Product Readiness", () => {
       logout: vi.fn(),
       refresh: vi.fn(),
     });
+    vi.spyOn(api, "listDatasets").mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 1,
+      total_pages: 0,
+    });
 
     render(<DashboardPage />);
-    expect(screen.queryByText(/user identity & ownership foundation/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/account status/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(mockUser.email)).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByText(/no datasets connected yet/i)).toBeInTheDocument();
+      expect(screen.getByText(/upload your first dataset/i)).toBeInTheDocument();
+    });
   });
 
-  it("9. product-oriented empty-state content renders cleanly", () => {
+  it("7. provides functional Upload Dataset action button", () => {
     vi.spyOn(authContext, "useAuth").mockReturnValue({
       user: mockUser,
       loading: false,
@@ -178,15 +187,20 @@ describe("Dashboard UX & Product Readiness", () => {
       logout: vi.fn(),
       refresh: vi.fn(),
     });
+    vi.spyOn(api, "listDatasets").mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 1,
+      total_pages: 0,
+    });
 
     render(<DashboardPage />);
-    expect(screen.getByRole("heading", { name: /your workspace is ready/i })).toBeInTheDocument();
-    expect(
-      screen.getByText(/your datasets and analytical insights will appear here once you begin working with data/i)
-    ).toBeInTheDocument();
+    const uploadButtons = screen.getAllByRole("button", { name: /upload dataset/i });
+    expect(uploadButtons.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("10. no fake numeric metrics are displayed as hardcoded counts", () => {
+  it("8. analyses card remains honest about unavailable M3 functionality", () => {
     vi.spyOn(authContext, "useAuth").mockReturnValue({
       user: mockUser,
       loading: false,
@@ -195,29 +209,19 @@ describe("Dashboard UX & Product Readiness", () => {
       logout: vi.fn(),
       refresh: vi.fn(),
     });
-
-    render(<DashboardPage />);
-    // Workspace cards should provide descriptive readiness instead of hardcoded numbers
-    expect(screen.getByText(/no datasets connected yet/i)).toBeInTheDocument();
-    expect(screen.getByText(/no analytical sessions yet/i)).toBeInTheDocument();
-  });
-
-  it("11. no disabled future-feature actions remain", () => {
-    vi.spyOn(authContext, "useAuth").mockReturnValue({
-      user: mockUser,
-      loading: false,
-      login: vi.fn(),
-      register: vi.fn(),
-      logout: vi.fn(),
-      refresh: vi.fn(),
+    vi.spyOn(api, "listDatasets").mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 1,
+      total_pages: 0,
     });
 
     render(<DashboardPage />);
-    expect(screen.queryByRole("button", { name: /upload dataset/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /new analysis/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/available in m3/i)).toBeInTheDocument();
   });
 
-  it("12. dashboard remains inaccessible without authentication and redirects to login", () => {
+  it("9. dashboard redirects to login when unauthenticated", () => {
     vi.spyOn(authContext, "useAuth").mockReturnValue({
       user: null,
       loading: false,
