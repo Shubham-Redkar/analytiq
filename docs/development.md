@@ -313,11 +313,11 @@ curl -s -b cookies.txt http://localhost:8000/api/v1/datasets/<DATASET_ID>/qualit
 - **Datasets Management (`/datasets`)**: Paginated list of user-owned datasets with format badges, row/column counts, file sizes, creation timestamps, and safe delete confirmation modals.
 - **Dataset Upload (`/datasets/upload`)**: Drag-and-drop file upload zone, client validation (25 MiB limit, `.csv` or `.xlsx` extension), optional custom dataset name, upload progress indicator, and error banners.
 - **Dataset Exploration (`/datasets/[id]`)**:
-  - **Overview Strip**: Key metrics (rows, columns, format, size, status, timestamp) and quick actions.
-  - **Data Preview Tab**: Paginated grid powered by DuckDB, displaying distinct visual null styling (`NULL`), column types, and horizontal scroll for wide schemas.
+  - **Overview Strip**: Key metrics (rows, columns, format, size, status, timestamp) and user-facing **Missing Values** KPI card displaying total missing cells and percentages (internal Parquet storage details abstracted away).
+  - **Data Preview Tab**: Paginated grid powered by DuckDB with sticky row numbers (`#`), sticky headers, friendly display types (Integer, Text, Decimal, Boolean, Date, Date & Time), right-aligned numeric cells, distinct italic `null` styling, and horizontal scroll hints.
   - **Schema Definition Tab**: Full list of columns with physical types, inferred logical types, nullable indicators, and sample values.
-  - **Column Profiling Tab**: Deep statistical cards per column displaying null percentage bars, distinct counts, numeric min/mean/max, date min/max, and top 5 frequent value distributions.
-  - **Data Quality Tab**: Deterministic quality findings cards (missing values, high cardinality, duplicate rows, constant columns) with severity indicators (`info`, `warning`, `critical`).
+  - **Column Profiling Tab**: Statistical cards per column with interactive column search, type filter buttons (All, Numeric, Text, Date/Time, Boolean), discrete categorical frequency summaries for low-cardinality integers, and clear high-cardinality text explanations.
+  - **Data Quality Tab**: Deterministic findings cards with natural grammatical phrasing, prioritized per-column missing values breakdown table, and clear educational descriptions for all measured indicators.
 
 ---
 
