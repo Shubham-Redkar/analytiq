@@ -181,13 +181,11 @@ check:
 
 ## health: Query backend liveness endpoint (GET /api/v1/health)
 health:
-	@curl -i -sS http://localhost:8000/api/v1/health || \
-		(echo "" && echo "Note: FastAPI backend is not currently responding on http://localhost:8000" >&2 && exit 1)
+	@curl -i -sS --fail-with-body http://localhost:8000/api/v1/health
 
 ## ready: Query backend readiness endpoint (GET /api/v1/ready)
 ready:
-	@curl -i -sS http://localhost:8000/api/v1/ready || \
-		(echo "" && echo "Note: FastAPI backend is not currently responding on http://localhost:8000" >&2 && exit 1)
+	@curl -i -sS --fail-with-body http://localhost:8000/api/v1/ready
 
 # -----------------------------------------------------------------------------
 # Maintenance
