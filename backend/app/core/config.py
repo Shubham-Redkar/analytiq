@@ -8,6 +8,7 @@ raises an error before the server accepts requests.
 import json
 import logging
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -52,6 +53,38 @@ class Settings(BaseSettings):
             f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
+
+    # ------------------------------------------------------------------
+    # Dataset Storage & Limits (M2)
+    # ------------------------------------------------------------------
+    storage_dir: str = Field(
+        default="",
+        description="Root storage directory path. If empty, defaults to repository root / storage.",
+    )
+    max_upload_size_bytes: int = Field(
+        default=25 * 1024 * 1024,  # 25 MiB
+        description="Maximum upload size in bytes (25 MiB).",
+    )
+    max_parsed_rows: int = Field(
+        default=250_000,
+        description="Maximum allowed row count for ingested datasets.",
+    )
+    max_parsed_columns: int = Field(
+        default=200,
+        description="Maximum allowed column count for ingested datasets.",
+    )
+    duckdb_memory_limit: str = Field(
+        default="512MB",
+        description="Maximum DuckDB memory limit per connection/query.",
+    )
+
+    @property
+    def storage_path(self) -> Path:
+        """Resolve absolute Path to dataset storage root."""
+        if self.storage_dir.strip():
+            return Path(self.storage_dir).resolve()
+        # Default to <repo_root>/storage
+        return (Path(__file__).resolve().parents[3] / "storage").resolve()
 
     # ------------------------------------------------------------------
     # CORS

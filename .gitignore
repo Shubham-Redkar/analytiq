@@ -248,3 +248,11 @@ coverage/
 .pytest_cache/
 .ruff_cache/
 
+# AnalytIQ Dataset Storage
+storage/uploads/*
+!storage/uploads/.gitkeep
+storage/parquet/*
+!storage/parquet/.gitkeep
+storage/reports/*
+!storage/reports/.gitkeep
+
