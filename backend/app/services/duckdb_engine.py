@@ -43,10 +43,12 @@ class DuckDBEngine:
         self._settings = get_settings()
 
     def _get_connection(self) -> duckdb.DuckDBPyConnection:
-        """Create a fresh in-memory connection with configured memory and thread limits."""
+        """Create a fresh in-memory connection with configured memory, thread, and safety limits."""
         con = duckdb.connect(database=":memory:")
         con.execute(f"SET memory_limit = '{self._settings.duckdb_memory_limit}'")
         con.execute("SET threads = 2")
+        con.execute("SET autoinstall_known_extensions = false")
+        con.execute("SET autoload_known_extensions = false")
         return con
 
     def _validate_parquet_file(self, parquet_path: Path) -> Path:
@@ -67,8 +69,9 @@ class DuckDBEngine:
         parquet_path: Path,
         offset: int = 0,
         limit: int = 25,
+        schema_columns: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
-        """Fetch a paginated row preview with column metadata."""
+        """Fetch a paginated row preview with column metadata and inferred logical types."""
         safe_path = self._validate_parquet_file(parquet_path)
         path_str = escape_duckdb_path(safe_path)
 
@@ -82,7 +85,18 @@ class DuckDBEngine:
 
             desc_sql = f"DESCRIBE SELECT * FROM read_parquet('{path_str}')"  # noqa: S608
             desc_rows = con.execute(desc_sql).fetchall()
-            columns = [{"name": r[0], "duckdb_type": r[1]} for r in desc_rows]
+
+            logical_type_map = {
+                c["name"]: c.get("logical_type") for c in (schema_columns or []) if "name" in c
+            }
+            columns = [
+                {
+                    "name": r[0],
+                    "duckdb_type": r[1],
+                    "logical_type": logical_type_map.get(r[0]),
+                }
+                for r in desc_rows
+            ]
 
             query = (
                 f"SELECT * FROM read_parquet('{path_str}') "  # noqa: S608
@@ -184,6 +198,22 @@ class DuckDBEngine:
                     profile_entry["max"] = sanitize_json_value(max_val)
                     profile_entry["mean"] = round(avg_val, 4) if avg_val is not None else None
 
+                    # Deterministic distinction for low-cardinality discrete integers
+                    # (e.g. Survived, Pclass)
+                    if col_type == "integer" and 0 < dist_cnt <= 10:
+                        top_query = (
+                            f"SELECT {quoted_col}, COUNT(*) AS cnt "  # noqa: S608
+                            f"FROM read_parquet('{path_str}') "
+                            f"WHERE {quoted_col} IS NOT NULL "
+                            f"GROUP BY {quoted_col} "
+                            f"ORDER BY cnt DESC, {quoted_col} ASC"
+                        )
+                        top_rows = con.execute(top_query).fetchall()
+                        profile_entry["top_values"] = [
+                            {"value": str(r[0]), "count": r[1]} for r in top_rows
+                        ]
+                        profile_entry["is_discrete"] = True
+
                 # Date / Timestamp metrics
                 elif col_type in {"date", "timestamp"}:
                     dt_query = (
@@ -196,6 +226,13 @@ class DuckDBEngine:
 
                 # Categorical / String top values
                 elif col_type in {"string", "boolean"}:
+                    # Deterministic high-cardinality check (>=90% unique in >=20 rows)
+                    is_high_cardinality = (
+                        col_type == "string" and total_rows >= 20 and (dist_cnt / total_rows) >= 0.9
+                    )
+                    if is_high_cardinality:
+                        profile_entry["is_high_cardinality"] = True
+
                     top_query = (
                         f"SELECT {quoted_col}, COUNT(*) AS cnt "  # noqa: S608
                         f"FROM read_parquet('{path_str}') "
@@ -205,32 +242,42 @@ class DuckDBEngine:
                         f"LIMIT 5"
                     )
                     top_rows = con.execute(top_query).fetchall()
-                    profile_entry["top_values"] = [
-                        {"value": str(r[0]), "count": r[1]} for r in top_rows
-                    ]
+                    # For predominantly unique strings with frequency 1,
+                    # avoid presenting arbitrary values as top categories
+                    if is_high_cardinality and top_rows and top_rows[0][1] == 1:
+                        profile_entry["top_values"] = []
+                    else:
+                        profile_entry["top_values"] = [
+                            {"value": str(r[0]), "count": r[1]} for r in top_rows
+                        ]
 
                 column_profiles.append(profile_entry)
 
-            # Generate verified quality findings
+            # Generate verified quality findings with natural, grammatically correct text
             quality_findings: list[dict[str, Any]] = []
 
             if duplicate_rows > 0:
+                row_word = "row" if duplicate_rows == 1 else "rows"
+                msg = f"{duplicate_rows} duplicate {row_word} detected across dataset."
                 quality_findings.append(
                     {
                         "type": "duplicate_rows",
                         "severity": "warning",
-                        "message": f"{duplicate_rows} duplicate row(s) detected across dataset.",
+                        "message": msg,
                     }
                 )
 
             if columns_with_missing > 0:
+                col_word = "column" if columns_with_missing == 1 else "columns"
+                cell_word = "cell" if missing_cells_total == 1 else "cells"
+                verb = "contains" if columns_with_missing == 1 else "contain"
                 quality_findings.append(
                     {
                         "type": "missing_values",
                         "severity": "warning",
                         "message": (
-                            f"{columns_with_missing} column(s) contain missing values "
-                            f"({missing_cells_total} missing cell(s) total)."
+                            f"{columns_with_missing} {col_word} {verb} missing values, "
+                            f"affecting {missing_cells_total} {cell_word}."
                         ),
                     }
                 )
@@ -264,6 +311,20 @@ class DuckDBEngine:
                     }
                 )
 
+            # Prioritized per-column missing values breakdown (sorted descending by null percentage)
+            columns_breakdown = [
+                {
+                    "name": p["name"],
+                    "logical_type": p["logical_type"],
+                    "null_count": p["null_count"],
+                    "null_percentage": p["null_percentage"],
+                    "distinct_count": p["distinct_count"],
+                }
+                for p in column_profiles
+                if p["null_count"] > 0
+            ]
+            columns_breakdown.sort(key=lambda x: x["null_percentage"], reverse=True)
+
             total_cells = total_rows * total_cols
             missing_percentage = (
                 round((missing_cells_total / total_cells) * 100.0, 2) if total_cells > 0 else 0.0
@@ -284,6 +345,7 @@ class DuckDBEngine:
                 "summary": summary,
                 "columns": column_profiles,
                 "quality_findings": quality_findings,
+                "columns_breakdown": columns_breakdown,
             }
         finally:
             con.close()

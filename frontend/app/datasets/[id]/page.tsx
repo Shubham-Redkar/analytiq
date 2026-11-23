@@ -13,18 +13,43 @@ import {
   FileText,
   Info,
   Layers,
+  Search,
   Table as TableIcon,
   Trash2,
 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { api, ApiError } from "@/lib/api";
 import type {
+  ColumnProfile,
   Dataset,
   DatasetPreviewResponse,
   DatasetProfileResponse,
   DatasetQualityResponse,
 } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+
+function getFriendlyTypeLabel(logicalType?: string, duckdbType?: string): string {
+  const t = (logicalType || duckdbType || "").toLowerCase();
+  if (t === "integer" || t.includes("int")) return "Integer";
+  if (t === "float" || t.includes("double") || t.includes("decimal") || t.includes("real"))
+    return "Decimal";
+  if (t === "boolean" || t.includes("bool")) return "Boolean";
+  if (t === "date") return "Date";
+  if (t === "timestamp" || t.includes("time")) return "Date & Time";
+  return "Text";
+}
+
+function isNumericColumn(logicalType?: string, duckdbType?: string): boolean {
+  const t = (logicalType || duckdbType || "").toLowerCase();
+  return (
+    t === "integer" ||
+    t === "float" ||
+    t.includes("int") ||
+    t.includes("double") ||
+    t.includes("decimal") ||
+    t.includes("real")
+  );
+}
 
 export function DatasetDetailContent({ id }: { id: string }) {
   const { user, loading: authLoading } = useAuth();
@@ -44,6 +69,10 @@ export function DatasetDetailContent({ id }: { id: string }) {
   // Profile & Quality state
   const [profile, setProfile] = useState<DatasetProfileResponse | null>(null);
   const [quality, setQuality] = useState<DatasetQualityResponse | null>(null);
+
+  // Profiling search & filter state
+  const [columnSearch, setColumnSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
 
   // Deletion modal state
   const [isDeleting, setIsDeleting] = useState(false);
@@ -226,6 +255,29 @@ export function DatasetDetailContent({ id }: { id: string }) {
 
   const columns = dataset.schema_json?.columns || [];
 
+  // Filter columns for profiling tab
+  const filteredColumns: ColumnProfile[] = (profile?.columns || []).filter((col) => {
+    const matchesSearch = col.name.toLowerCase().includes(columnSearch.toLowerCase().trim());
+    if (!matchesSearch) return false;
+    if (typeFilter === "all") return true;
+    if (typeFilter === "numeric") {
+      return col.logical_type === "integer" || col.logical_type === "float";
+    }
+    if (typeFilter === "text") {
+      return col.logical_type === "string";
+    }
+    if (typeFilter === "datetime") {
+      return col.logical_type === "date" || col.logical_type === "timestamp";
+    }
+    if (typeFilter === "boolean") {
+      return col.logical_type === "boolean";
+    }
+    return true;
+  });
+
+  // Calculate missing values summary safely from quality_summary or quality state
+  const missingSummary = dataset.quality_summary || quality?.summary;
+
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Navigation & Header */}
@@ -286,7 +338,7 @@ export function DatasetDetailContent({ id }: { id: string }) {
         </div>
       </div>
 
-      {/* Summary KPI Strip */}
+      {/* Summary KPI Strip - Refinement A: Missing Values replaces internal storage details */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
         <div className="rounded-xl border border-border bg-card p-4 shadow-2xs">
           <p className="text-xs font-medium text-muted-foreground">Total Rows</p>
@@ -310,9 +362,18 @@ export function DatasetDetailContent({ id }: { id: string }) {
           </div>
         </div>
         <div className="rounded-xl border border-border bg-card p-4 shadow-2xs">
-          <p className="text-xs font-medium text-muted-foreground">Engine Storage</p>
-          <p className="mt-1 text-sm font-semibold text-foreground">
-            Normalized Parquet
+          <p className="text-xs font-medium text-muted-foreground">Missing Values</p>
+          <p className="mt-1 text-xl sm:text-2xl font-bold font-mono text-foreground">
+            {missingSummary ? (
+              <>
+                {missingSummary.missing_cells.toLocaleString()}
+                <span className="text-xs sm:text-sm font-normal text-muted-foreground ml-1.5">
+                  ({missingSummary.missing_percentage}%)
+                </span>
+              </>
+            ) : (
+              "—"
+            )}
           </p>
         </div>
       </div>
@@ -367,7 +428,7 @@ export function DatasetDetailContent({ id }: { id: string }) {
         </nav>
       </div>
 
-      {/* TAB 1: DATA PREVIEW */}
+      {/* TAB 1: DATA PREVIEW - Refinement B: Sticky row-num, friendly types, numeric alignment, horizontal hint */}
       {activeTab === "preview" && (
         <div className="space-y-4">
           <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
@@ -379,57 +440,84 @@ export function DatasetDetailContent({ id }: { id: string }) {
                 <div className="h-8 w-full animate-pulse rounded bg-muted" />
               </div>
             ) : preview && preview.rows.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-border/80 bg-muted/40">
-                      <th className="px-4 py-3 font-mono text-xs text-muted-foreground w-12 text-center">
-                        #
-                      </th>
-                      {preview.columns.map((col) => (
-                        <th key={col.name} className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <span>{col.name}</span>
-                            <span className="text-[11px] font-mono font-normal text-muted-foreground/80 px-1.5 py-0.5 rounded bg-muted">
-                              {col.duckdb_type}
-                            </span>
-                          </div>
+              <div>
+                {/* Horizontal scroll discoverability banner */}
+                <div className="px-4 py-2 bg-muted/20 border-b border-border/60 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Horizontal scroll enabled for wide dataset viewing</span>
+                  <span className="font-mono">{preview.columns.length} columns</span>
+                </div>
+
+                <div className="overflow-x-auto max-h-[600px] relative">
+                  <table className="w-full text-left border-collapse text-sm">
+                    <thead>
+                      <tr className="border-b border-border/80 bg-muted/95 backdrop-blur-xs sticky top-0 z-10">
+                        <th className="sticky left-0 bg-muted/95 backdrop-blur-xs z-20 px-4 py-3 font-mono text-xs text-muted-foreground w-12 text-center border-r border-border/80">
+                          #
                         </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/60">
-                    {preview.rows.map((row, rowIdx) => (
-                      <tr key={rowIdx} className="hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground/70 text-center">
-                          {previewOffset + rowIdx + 1}
-                        </td>
                         {preview.columns.map((col) => {
-                          const val = row[col.name];
+                          const isNumeric = isNumericColumn(col.logical_type, col.duckdb_type);
+                          const displayType = getFriendlyTypeLabel(col.logical_type, col.duckdb_type);
                           return (
-                            <td key={col.name} className="px-4 py-2.5 whitespace-nowrap">
-                              {val === null || val === undefined ? (
-                                <span className="italic text-muted-foreground/60 text-xs font-mono">
-                                  null
+                            <th
+                              key={col.name}
+                              className={`px-4 py-3 font-semibold text-foreground whitespace-nowrap ${
+                                isNumeric ? "text-right" : "text-left"
+                              }`}
+                            >
+                              <div
+                                className={`flex items-center gap-2 ${
+                                  isNumeric ? "justify-end" : "justify-start"
+                                }`}
+                              >
+                                <span>{col.name}</span>
+                                <span className="text-[11px] font-sans font-normal text-muted-foreground px-1.5 py-0.5 rounded bg-muted border border-border/40">
+                                  {displayType}
                                 </span>
-                              ) : typeof val === "boolean" ? (
-                                <span className="font-mono text-xs font-semibold text-primary">
-                                  {val ? "true" : "false"}
-                                </span>
-                              ) : typeof val === "number" ? (
-                                <span className="font-mono text-foreground">
-                                  {val.toLocaleString()}
-                                </span>
-                              ) : (
-                                <span className="text-foreground">{String(val)}</span>
-                              )}
-                            </td>
+                              </div>
+                            </th>
                           );
                         })}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {preview.rows.map((row, rowIdx) => (
+                        <tr key={rowIdx} className="group hover:bg-muted/40 transition-colors">
+                          <td className="sticky left-0 bg-card group-hover:bg-muted/40 transition-colors z-10 px-4 py-2.5 font-mono text-xs text-muted-foreground/70 text-center border-r border-border/80">
+                            {previewOffset + rowIdx + 1}
+                          </td>
+                          {preview.columns.map((col) => {
+                            const val = row[col.name];
+                            const isNumeric = isNumericColumn(col.logical_type, col.duckdb_type);
+                            return (
+                              <td
+                                key={col.name}
+                                className={`px-4 py-2.5 whitespace-nowrap ${
+                                  isNumeric ? "text-right" : "text-left"
+                                }`}
+                              >
+                                {val === null || val === undefined ? (
+                                  <span className="italic text-muted-foreground/60 text-xs font-mono">
+                                    null
+                                  </span>
+                                ) : typeof val === "boolean" ? (
+                                  <span className="font-mono text-xs font-semibold text-primary">
+                                    {val ? "true" : "false"}
+                                  </span>
+                                ) : typeof val === "number" ? (
+                                  <span className="font-mono text-foreground">
+                                    {val.toLocaleString()}
+                                  </span>
+                                ) : (
+                                  <span className="text-foreground">{String(val)}</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             ) : (
               <div className="p-8 text-center text-muted-foreground">
@@ -481,7 +569,7 @@ export function DatasetDetailContent({ id }: { id: string }) {
                   <th className="px-6 py-3.5">#</th>
                   <th className="px-6 py-3.5">Column Name</th>
                   <th className="px-6 py-3.5">Logical Type</th>
-                  <th className="px-6 py-3.5">DuckDB Engine Type</th>
+                  <th className="px-6 py-3.5">Engine Physical Type</th>
                   <th className="px-6 py-3.5">Nullable</th>
                 </tr>
               </thead>
@@ -521,101 +609,170 @@ export function DatasetDetailContent({ id }: { id: string }) {
         </div>
       )}
 
-      {/* TAB 3: COLUMN PROFILING */}
+      {/* TAB 3: COLUMN PROFILING - Refinement C: Search, filter, discrete frequencies, high-cardinality clarity */}
       {activeTab === "profile" && (
         <div className="space-y-6">
           {profile ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {profile.columns.map((col) => (
-                <div
-                  key={col.name}
-                  className="rounded-2xl border border-border bg-card p-5 shadow-2xs flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex items-center justify-between pb-3 border-b border-border/60">
-                      <h4 className="font-bold text-foreground font-mono text-base truncate">
-                        {col.name}
-                      </h4>
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary capitalize">
-                        {col.logical_type}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 py-4 text-xs sm:text-sm">
-                      <div>
-                        <span className="text-muted-foreground">Missing Values:</span>
-                        <p className="font-semibold text-foreground mt-0.5 font-mono">
-                          {col.null_count.toLocaleString()} ({col.null_percentage}%)
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Distinct Values:</span>
-                        <p className="font-semibold text-foreground mt-0.5 font-mono">
-                          {col.distinct_count.toLocaleString()}
-                        </p>
-                      </div>
-
-                      {col.min !== null && (
-                        <div>
-                          <span className="text-muted-foreground">Minimum:</span>
-                          <p className="font-semibold text-foreground mt-0.5 font-mono truncate">
-                            {String(col.min)}
-                          </p>
-                        </div>
-                      )}
-
-                      {col.max !== null && (
-                        <div>
-                          <span className="text-muted-foreground">Maximum:</span>
-                          <p className="font-semibold text-foreground mt-0.5 font-mono truncate">
-                            {String(col.max)}
-                          </p>
-                        </div>
-                      )}
-
-                      {col.mean !== null && (
-                        <div>
-                          <span className="text-muted-foreground">Average (Mean):</span>
-                          <p className="font-semibold text-foreground mt-0.5 font-mono">
-                            {col.mean.toLocaleString()}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    {col.top_values && col.top_values.length > 0 && (
-                      <div className="pt-3 border-t border-border/60">
-                        <span className="text-xs font-semibold text-muted-foreground">
-                          Top Frequent Values:
-                        </span>
-                        <div className="mt-2 space-y-1.5">
-                          {col.top_values.map((item, idx) => (
-                            <div
-                              key={idx}
-                              className="flex items-center justify-between text-xs font-mono bg-muted/40 px-2.5 py-1 rounded"
-                            >
-                              <span className="truncate max-w-[200px] text-foreground">
-                                {item.value}
-                              </span>
-                              <span className="text-muted-foreground font-semibold">
-                                {item.count.toLocaleString()}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+            <>
+              {/* Profiling Controls */}
+              <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+                <div className="relative flex-1 max-w-sm">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <input
+                    type="search"
+                    placeholder="Search columns by name..."
+                    aria-label="Search columns by name"
+                    value={columnSearch}
+                    onChange={(e) => setColumnSearch(e.target.value)}
+                    className="w-full rounded-xl border border-border bg-background pl-9 pr-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  />
                 </div>
-              ))}
-            </div>
+
+                {/* Type Filter Buttons */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0" role="group" aria-label="Filter columns by type">
+                  {[
+                    { id: "all", label: "All" },
+                    { id: "numeric", label: "Numeric" },
+                    { id: "text", label: "Text" },
+                    { id: "datetime", label: "Date/Time" },
+                    { id: "boolean", label: "Boolean" },
+                  ].map((filter) => (
+                    <button
+                      key={filter.id}
+                      onClick={() => setTypeFilter(filter.id)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer shrink-0 ${
+                        typeFilter === filter.id
+                          ? "bg-primary text-primary-foreground font-semibold"
+                          : "bg-muted text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {filteredColumns.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-border/80 bg-muted/15 p-12 text-center">
+                  <p className="text-sm font-medium text-foreground">No columns match your filter criteria.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Try clearing your search query or selecting &quot;All&quot; types.</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setColumnSearch("");
+                      setTypeFilter("all");
+                    }}
+                    className="mt-4 cursor-pointer"
+                  >
+                    Reset filters
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {filteredColumns.map((col) => (
+                    <div
+                      key={col.name}
+                      className="rounded-2xl border border-border bg-card p-5 shadow-2xs flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between pb-3 border-b border-border/60">
+                          <h4 className="font-bold text-foreground font-mono text-base truncate">
+                            {col.name}
+                          </h4>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary capitalize">
+                            {col.logical_type}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 py-4 text-xs sm:text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Missing Values:</span>
+                            <p className="font-semibold text-foreground mt-0.5 font-mono">
+                              {col.null_count.toLocaleString()} ({col.null_percentage}%)
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Distinct Values:</span>
+                            <p className="font-semibold text-foreground mt-0.5 font-mono">
+                              {col.distinct_count.toLocaleString()}
+                            </p>
+                          </div>
+
+                          {col.min !== null && (
+                            <div>
+                              <span className="text-muted-foreground">Minimum:</span>
+                              <p className="font-semibold text-foreground mt-0.5 font-mono truncate">
+                                {String(col.min)}
+                              </p>
+                            </div>
+                          )}
+
+                          {col.max !== null && (
+                            <div>
+                              <span className="text-muted-foreground">Maximum:</span>
+                              <p className="font-semibold text-foreground mt-0.5 font-mono truncate">
+                                {String(col.max)}
+                              </p>
+                            </div>
+                          )}
+
+                          {col.mean !== null && (
+                            <div className="col-span-2 sm:col-span-1">
+                              <span className="text-muted-foreground">
+                                {col.is_discrete ? "Arithmetic Mean:" : "Average (Mean):"}
+                              </span>
+                              <p className="font-semibold text-foreground mt-0.5 font-mono">
+                                {col.mean.toLocaleString()}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* High Cardinality explanation for text */}
+                        {col.is_high_cardinality && (
+                          <div className="py-2.5 px-3 rounded-lg bg-muted/40 border border-border/40 text-xs text-muted-foreground mb-3">
+                            <span className="font-medium text-foreground">High-cardinality text:</span>{" "}
+                            {col.distinct_count.toLocaleString()} unique values. Values are predominantly unique.
+                          </div>
+                        )}
+
+                        {/* Frequent Values / Discrete Categories */}
+                        {col.top_values && col.top_values.length > 0 && (
+                          <div className="pt-3 border-t border-border/60">
+                            <span className="text-xs font-semibold text-muted-foreground">
+                              {col.is_discrete ? "Descriptive Frequency Summary:" : "Top Frequent Values:"}
+                            </span>
+                            <div className="mt-2 space-y-1.5">
+                              {col.top_values.map((item, idx) => (
+                                <div
+                                  key={idx}
+                                  className="flex items-center justify-between text-xs font-mono bg-muted/40 px-2.5 py-1 rounded"
+                                >
+                                  <span className="truncate max-w-[200px] text-foreground">
+                                    {item.value}
+                                  </span>
+                                  <span className="text-muted-foreground font-semibold">
+                                    {item.count.toLocaleString()}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           ) : (
             <div className="h-64 animate-pulse rounded-2xl bg-muted" />
           )}
         </div>
       )}
 
-      {/* TAB 4: DATA QUALITY */}
+      {/* TAB 4: DATA QUALITY - Refinement D: Per-column breakdown, natural text, metric explanations */}
       {activeTab === "quality" && (
         <div className="space-y-6">
           {quality ? (
@@ -642,7 +799,57 @@ export function DatasetDetailContent({ id }: { id: string }) {
                 </div>
               </div>
 
-              {/* Findings list */}
+              {/* Per-column missing-value breakdown table */}
+              {quality.columns_breakdown && quality.columns_breakdown.length > 0 && (
+                <div className="rounded-2xl border border-border bg-card p-6 shadow-xs space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-base font-semibold text-foreground">Missing Values by Column</h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Prioritized breakdown of all columns containing missing data.
+                      </p>
+                    </div>
+                    <span className="text-xs text-muted-foreground font-medium px-2 py-0.5 rounded bg-muted">
+                      {quality.columns_breakdown.length} affected {quality.columns_breakdown.length === 1 ? "column" : "columns"}
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto rounded-xl border border-border/70">
+                    <table className="w-full text-left border-collapse text-sm">
+                      <thead>
+                        <tr className="border-b border-border/80 bg-muted/40 text-xs font-semibold text-muted-foreground">
+                          <th className="px-4 py-3">Column</th>
+                          <th className="px-4 py-3">Type</th>
+                          <th className="px-4 py-3 text-right">Missing Cells</th>
+                          <th className="px-4 py-3 text-right">Missing %</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/60">
+                        {quality.columns_breakdown.map((item) => (
+                          <tr key={item.name} className="hover:bg-muted/30 transition-colors">
+                            <td className="px-4 py-2.5 font-mono font-semibold text-foreground">
+                              {item.name}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground capitalize">
+                                {item.logical_type}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2.5 font-mono text-right text-foreground">
+                              {item.null_count.toLocaleString()}
+                            </td>
+                            <td className="px-4 py-2.5 font-mono text-right font-semibold text-amber-600 dark:text-amber-400">
+                              {item.null_percentage}%
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Verified Quality Findings list */}
               <div className="rounded-2xl border border-border bg-card p-6 shadow-xs space-y-4">
                 <h3 className="text-base font-semibold text-foreground">Verified Quality Findings</h3>
                 <div className="space-y-3">
@@ -667,6 +874,27 @@ export function DatasetDetailContent({ id }: { id: string }) {
                   ))}
                 </div>
               </div>
+
+              {/* Quality Metric Explanations */}
+              <div className="rounded-2xl border border-border/80 bg-muted/15 p-6 space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Understanding Quality Indicators
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-muted-foreground">
+                  <div>
+                    <span className="font-semibold text-foreground">Duplicate Rows:</span> Rows that share identical values across every column.
+                  </div>
+                  <div>
+                    <span className="font-semibold text-foreground">Missing Cells:</span> Null or empty values where observation data was expected.
+                  </div>
+                  <div>
+                    <span className="font-semibold text-foreground">High Cardinality:</span> Columns with predominantly unique values, typical of identifiers.
+                  </div>
+                  <div>
+                    <span className="font-semibold text-foreground">Constant Columns:</span> Columns possessing identical values across all records with zero variance.
+                  </div>
+                </div>
+              </div>
             </>
           ) : (
             <div className="h-64 animate-pulse rounded-2xl bg-muted" />
@@ -674,7 +902,7 @@ export function DatasetDetailContent({ id }: { id: string }) {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal - Refinement F */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
           <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl">
@@ -682,12 +910,13 @@ export function DatasetDetailContent({ id }: { id: string }) {
               Delete Dataset
             </h3>
             <p className="mt-2 text-sm text-muted-foreground">
-              Are you sure you want to delete <span className="font-semibold text-foreground">&quot;{dataset.name}&quot;</span>? This action cannot be undone and will remove the normalized Parquet files.
+              Are you sure you want to delete <span className="font-semibold text-foreground">&quot;{dataset.name}&quot;</span>? This action cannot be undone and will permanently remove the dataset, its metadata, and normalized storage files.
             </p>
 
             {deleteError && (
-              <div className="mt-4 rounded-lg bg-destructive/10 p-3 text-xs text-destructive">
-                {deleteError}
+              <div className="mt-4 rounded-lg bg-destructive/10 p-3 text-xs text-destructive flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{deleteError}</span>
               </div>
             )}
 

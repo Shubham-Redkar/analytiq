@@ -158,11 +158,13 @@ class DatasetService:
             return None
 
         parquet_path = storage_service.get_parquet_file_path(dataset.id)
+        schema_cols = dataset.schema_json.get("columns") if dataset.schema_json else None
         return await asyncio.to_thread(
             duckdb_engine.get_preview,
             parquet_path,
             offset,
             limit,
+            schema_cols,
         )
 
     async def get_profile(
@@ -195,6 +197,7 @@ class DatasetService:
         return {
             "summary": dataset.profile_json.get("summary", {}),
             "quality_findings": dataset.profile_json.get("quality_findings", []),
+            "columns_breakdown": dataset.profile_json.get("columns_breakdown", []),
         }
 
     async def delete_dataset(
@@ -203,7 +206,12 @@ class DatasetService:
         dataset_id: uuid.UUID,
         owner_id: uuid.UUID,
     ) -> bool:
-        """Delete dataset metadata from PostgreSQL and remove its files from storage."""
+        """Delete dataset metadata from PostgreSQL and remove its files from storage.
+
+        Database commit acts as the primary system of record. Associated filesystem directories
+        are removed with structured recovery logging to prevent blocking user requests if disk
+        cleanup experiences transient delays.
+        """
         dataset = await self.get_dataset(db, dataset_id, owner_id)
         if dataset is None:
             return False
@@ -211,7 +219,7 @@ class DatasetService:
         await db.delete(dataset)
         await db.commit()
 
-        # Safely remove files
+        # Resilient file cleanup
         storage_service.delete_dataset_files(dataset_id)
         return True
 
