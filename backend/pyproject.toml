@@ -20,6 +20,7 @@ dependencies = [
     "python-multipart>=0.0.12",
     "sqlglot>=26.0.0",
     "httpx>=0.28.0",
+    "langgraph>=1.2.24",
 ]
 
 [project.optional-dependencies]
