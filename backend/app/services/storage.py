@@ -19,6 +19,10 @@ class PayloadTooLargeError(Exception):
     """Raised when an uploaded file exceeds the configured size limit."""
 
 
+class StorageDeletionError(Exception):
+    """Raised when removing dataset files or directories fails on the filesystem."""
+
+
 class StorageService:
     """Manages file storage for dataset source uploads and normalized Parquet files."""
 
@@ -109,26 +113,50 @@ class StorageService:
                     f.write(chunk)
         except Exception:
             # Clean up partial upload immediately on failure
-            self.delete_dataset_files(dataset_id)
+            try:
+                self.delete_dataset_files(dataset_id)
+            except Exception as cleanup_err:
+                logger.warning(
+                    "Failed to clean up partial upload for %s: %s", dataset_id, cleanup_err
+                )
             raise
 
         if bytes_written == 0:
-            self.delete_dataset_files(dataset_id)
+            try:
+                self.delete_dataset_files(dataset_id)
+            except Exception as cleanup_err:
+                logger.warning("Failed to clean up empty file for %s: %s", dataset_id, cleanup_err)
             raise ValueError("Uploaded file is empty.")
 
         return file_path, bytes_written
 
     def delete_dataset_files(self, dataset_id: uuid.UUID) -> None:
-        """Safely remove all files and directories associated with a dataset."""
+        """Safely remove all files and directories associated with a dataset.
+
+        Missing directories or files are handled idempotently. Genuine filesystem failures
+        (e.g., PermissionError or other OSError) are raised as StorageDeletionError to prevent
+        unreported residual storage files.
+        """
         upload_dir = self.get_upload_dir(dataset_id)
         parquet_dir = self.get_parquet_dir(dataset_id)
 
+        failed_dirs: list[tuple[Path, OSError]] = []
         for d in (upload_dir, parquet_dir):
             if d.exists():
                 try:
                     shutil.rmtree(d)
+                except FileNotFoundError:
+                    # Idempotent cleanup if already gone
+                    pass
                 except OSError as err:
-                    logger.warning("Failed to delete storage directory %s: %s", d, err)
+                    logger.error("Failed to delete storage directory %s: %s", d, err)
+                    failed_dirs.append((d, err))
+
+        if failed_dirs:
+            first_dir, first_err = failed_dirs[0]
+            raise StorageDeletionError(
+                f"Filesystem deletion failed for directory '{first_dir.name}': {first_err}"
+            ) from first_err
 
 
 storage_service = StorageService()

@@ -26,7 +26,11 @@ from app.schemas.dataset import (
 )
 from app.services.dataset_service import dataset_service
 from app.services.parser import ParseValidationError
-from app.services.storage import PayloadTooLargeError, StorageSecurityError
+from app.services.storage import (
+    PayloadTooLargeError,
+    StorageDeletionError,
+    StorageSecurityError,
+)
 
 router = APIRouter()
 
@@ -218,10 +222,19 @@ async def delete_dataset(
     db: DatabaseSession,
 ) -> DatasetDeleteResponse:
     """Delete a dataset and all associated files from storage."""
-    deleted = await dataset_service.delete_dataset(db, dataset_id, current_user.id)
-    if not deleted:
+    try:
+        deleted = await dataset_service.delete_dataset(db, dataset_id, current_user.id)
+        if not deleted:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Dataset not found.",
+            )
+        return DatasetDeleteResponse(dataset_id=dataset_id)
+    except StorageDeletionError as exc:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Dataset not found.",
-        )
-    return DatasetDeleteResponse(dataset_id=dataset_id)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=(
+                "Failed to delete dataset storage files. "
+                "The dataset has been marked for deletion retry."
+            ),
+        ) from exc
