@@ -200,15 +200,22 @@ export default function DatasetsListPage() {
                           </Link>
                         </td>
                         <td className="px-6 py-4">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
-                              dataset.file_format === "CSV"
-                                ? "bg-primary/10 text-primary"
-                                : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                            }`}
-                          >
-                            {dataset.file_format}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
+                                dataset.file_format === "CSV"
+                                  ? "bg-primary/10 text-primary"
+                                  : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                              }`}
+                            >
+                              {dataset.file_format}
+                            </span>
+                            {dataset.status === "deletion_failed" && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-destructive/15 text-destructive">
+                                Deletion Failed
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 text-muted-foreground font-mono">
                           {dataset.row_count !== null ? dataset.row_count.toLocaleString() : "—"}

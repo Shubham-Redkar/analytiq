@@ -122,6 +122,110 @@ class Settings(BaseSettings):
         description="Duration of account lockout in minutes.",
     )
 
+    # ------------------------------------------------------------------
+    # LLM Provider Configuration (M3)
+    # ------------------------------------------------------------------
+    llm_provider: str = Field(
+        default="ollama",
+        description="Active LLM provider: 'ollama' or 'mock' (test/dev only).",
+    )
+    llm_model: str = Field(
+        default="llama3.2:latest",
+        description="Model identifier for the active LLM provider.",
+    )
+    ollama_base_url: str = Field(
+        default="http://127.0.0.1:11434",
+        description="Server-controlled base URL for local Ollama runtime.",
+    )
+    llm_temperature: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=2.0,
+        description="Sampling temperature for LLM generation.",
+    )
+    llm_connect_timeout_seconds: float = Field(
+        default=5.0,
+        ge=1.0,
+        le=60.0,
+        description="Connection timeout in seconds for provider HTTP requests.",
+    )
+    llm_request_timeout_seconds: float = Field(
+        default=120.0,
+        ge=5.0,
+        le=600.0,
+        description="Read / request timeout in seconds for provider HTTP requests.",
+    )
+    llm_max_output_tokens: int = Field(
+        default=2048,
+        ge=128,
+        le=8192,
+        description="Maximum generation output tokens.",
+    )
+    llm_max_provider_retries: int = Field(
+        default=1,
+        ge=0,
+        le=5,
+        description="Maximum retries on transient network/provider errors.",
+    )
+
+    # ------------------------------------------------------------------
+    # Analytical Engine & Query Security (M3)
+    # ------------------------------------------------------------------
+    analysis_max_question_length: int = Field(
+        default=2000,
+        ge=10,
+        le=10000,
+        description="Maximum allowed characters in user analytical question.",
+    )
+    analysis_max_correction_attempts: int = Field(
+        default=1,
+        ge=0,
+        le=3,
+        description="Maximum bounded correction attempts for syntax/schema errors.",
+    )
+    analysis_max_concurrent_requests: int = Field(
+        default=2,
+        ge=1,
+        le=16,
+        description="Maximum concurrent analytical queries executed per application worker.",
+    )
+    analysis_query_timeout_seconds: float = Field(
+        default=15.0,
+        ge=1.0,
+        le=120.0,
+        description="Maximum execution deadline for analytical DuckDB queries.",
+    )
+    analysis_max_result_rows: int = Field(
+        default=1000,
+        ge=1,
+        le=10000,
+        description="Maximum row limit returned to client in analytical result sets.",
+    )
+    analysis_max_result_bytes: int = Field(
+        default=2 * 1024 * 1024,  # 2 MiB
+        ge=1024,
+        le=50 * 1024 * 1024,
+        description="Maximum serialization payload size for analytical results.",
+    )
+    analysis_duckdb_memory_limit: str = Field(
+        default="512MB",
+        description="DuckDB in-memory analytical query ceiling.",
+    )
+    analysis_duckdb_threads: int = Field(
+        default=2,
+        ge=1,
+        le=8,
+        description="Maximum CPU threads allocated to DuckDB analytical queries.",
+    )
+
+    @field_validator("llm_provider", mode="before")
+    @classmethod
+    def validate_llm_provider(cls, value: str) -> str:
+        provider = str(value).strip().lower()
+        if provider not in ("ollama", "mock"):
+            raise ValueError(f"Unsupported LLM provider '{value}'. Must be 'ollama' or 'mock'.")
+        return provider
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, value: object) -> list[str]:

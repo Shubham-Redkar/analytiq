@@ -80,6 +80,8 @@ class DuckDBEngine:
 
         con = self._get_connection()
         try:
+            con.execute("SET threads = 1")
+            con.execute("SET preserve_insertion_order = true")
             count_sql = f"SELECT COUNT(*) FROM read_parquet('{path_str}')"  # noqa: S608
             total_rows = con.execute(count_sql).fetchone()[0]  # type: ignore[index]
 
@@ -112,12 +114,17 @@ class DuckDBEngine:
                     row_dict[col_name] = sanitize_json_value(raw_row[idx])
                 rows.append(row_dict)
 
+            has_next = (clamped_offset + len(rows)) < total_rows
+            has_previous = clamped_offset > 0
+
             return {
                 "columns": columns,
                 "rows": rows,
                 "total_rows": total_rows,
                 "offset": clamped_offset,
                 "limit": clamped_limit,
+                "has_next": has_next,
+                "has_previous": has_previous,
             }
         finally:
             con.close()
@@ -302,7 +309,9 @@ class DuckDBEngine:
                 )
 
             if not quality_findings:
-                msg = "No duplicate rows or missing values detected. Dataset structure is clean."
+                msg = (
+                    "No duplicate rows or missing values detected within evaluated quality checks."
+                )
                 quality_findings.append(
                     {
                         "type": "clean_dataset",

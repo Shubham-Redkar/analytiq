@@ -441,5 +441,146 @@ describe("M2 Dataset Experience", () => {
         expect(screen.getByText(/understanding quality indicators/i)).toBeInTheDocument();
       });
     });
+
+    it("supports full-dataset server-side pagination with First, Previous, Next, and Last controls", async () => {
+      const largeDataset: Dataset = {
+        ...sampleDataset,
+        row_count: 2500,
+      };
+      vi.spyOn(api, "getDataset").mockResolvedValue(largeDataset);
+
+      const mockPreview = vi.spyOn(api, "getDatasetPreview").mockImplementation(async (_id, offset) => ({
+        columns: [{ name: "id", duckdb_type: "BIGINT", logical_type: "integer" }],
+        rows: Array.from({ length: 25 }, (_, i) => ({ id: (offset || 0) + i + 1 })),
+        total_rows: 2500,
+        offset: offset || 0,
+        limit: 25,
+        has_next: (offset || 0) + 25 < 2500,
+        has_previous: (offset || 0) > 0,
+      }));
+
+      render(<DatasetDetailContent id={largeDataset.id} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/showing rows 1–25 of 2,500/i)).toBeInTheDocument();
+        expect(screen.getByText(/page 1 of 100/i)).toBeInTheDocument();
+      });
+
+      // First and Previous should be disabled on page 1
+      expect(screen.getByRole("button", { name: /first page/i })).toBeDisabled();
+      expect(screen.getByRole("button", { name: /previous page/i })).toBeDisabled();
+
+      // Next and Last should be enabled
+      const nextBtn = screen.getByRole("button", { name: /next page/i });
+      const lastBtn = screen.getByRole("button", { name: /last page/i });
+      expect(nextBtn).toBeEnabled();
+      expect(lastBtn).toBeEnabled();
+
+      // Click Next -> moves to page 2 (offset 25)
+      await userEvent.click(nextBtn);
+      await waitFor(() => {
+        expect(mockPreview).toHaveBeenCalledWith(largeDataset.id, 25, 25);
+        expect(screen.getByText(/showing rows 26–50 of 2,500/i)).toBeInTheDocument();
+        expect(screen.getByText(/page 2 of 100/i)).toBeInTheDocument();
+      });
+
+      // Click Last -> moves to page 100 (offset 2475)
+      await userEvent.click(lastBtn);
+      await waitFor(() => {
+        expect(mockPreview).toHaveBeenCalledWith(largeDataset.id, 2475, 25);
+        expect(screen.getByText(/showing rows 2,476–2,500 of 2,500/i)).toBeInTheDocument();
+        expect(screen.getByText(/page 100 of 100/i)).toBeInTheDocument();
+      });
+
+      // On final page, Next and Last are disabled
+      expect(screen.getByRole("button", { name: /next page/i })).toBeDisabled();
+      expect(screen.getByRole("button", { name: /last page/i })).toBeDisabled();
+
+      // Click First -> returns to page 1 (offset 0)
+      const firstBtn = screen.getByRole("button", { name: /first page/i });
+      expect(firstBtn).toBeEnabled();
+      await userEvent.click(firstBtn);
+      await waitFor(() => {
+        expect(mockPreview).toHaveBeenCalledWith(largeDataset.id, 0, 25);
+        expect(screen.getByText(/showing rows 1–25 of 2,500/i)).toBeInTheDocument();
+      });
+    });
+
+    it("displays deletion incomplete banner when dataset is in deletion_failed status", async () => {
+      const failedDataset: Dataset = {
+        ...sampleDataset,
+        status: "deletion_failed",
+      };
+      vi.spyOn(api, "getDataset").mockResolvedValue(failedDataset);
+      vi.spyOn(api, "getDatasetPreview").mockResolvedValue({
+        columns: [],
+        rows: [],
+        total_rows: 0,
+        offset: 0,
+        limit: 25,
+      });
+
+      render(<DatasetDetailContent id={failedDataset.id} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/dataset deletion incomplete/i)).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /retry deletion/i })).toBeInTheDocument();
+      });
+    });
+
+    it("displays 'Not computed' when quality_summary is null for older datasets", async () => {
+      const legacyDataset: Dataset = {
+        ...sampleDataset,
+        quality_summary: null,
+      };
+      vi.spyOn(api, "getDataset").mockResolvedValue(legacyDataset);
+      vi.spyOn(api, "getDatasetPreview").mockResolvedValue({
+        columns: [],
+        rows: [],
+        total_rows: 0,
+        offset: 0,
+        limit: 25,
+      });
+
+      render(<DatasetDetailContent id={legacyDataset.id} />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Missing Values")).toBeInTheDocument();
+        expect(screen.getByText("Not computed")).toBeInTheDocument();
+      });
+    });
+
+    it("allows dismissing the horizontal scroll hint banner on wide tables", async () => {
+      vi.spyOn(api, "getDataset").mockResolvedValue(sampleDataset);
+      vi.spyOn(api, "getDatasetPreview").mockResolvedValue({
+        columns: [
+          { name: "c1", duckdb_type: "VARCHAR", logical_type: "string" },
+          { name: "c2", duckdb_type: "VARCHAR", logical_type: "string" },
+          { name: "c3", duckdb_type: "VARCHAR", logical_type: "string" },
+          { name: "c4", duckdb_type: "VARCHAR", logical_type: "string" },
+          { name: "c5", duckdb_type: "VARCHAR", logical_type: "string" },
+          { name: "c6", duckdb_type: "VARCHAR", logical_type: "string" },
+        ],
+        rows: [{ c1: "a", c2: "b", c3: "c", c4: "d", c5: "e", c6: "f" }],
+        total_rows: 1,
+        offset: 0,
+        limit: 25,
+      });
+
+      render(<DatasetDetailContent id={sampleDataset.id} />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/horizontal scroll enabled for wide dataset viewing/i)
+        ).toBeInTheDocument();
+      });
+
+      const dismissBtn = screen.getByRole("button", { name: /dismiss scroll hint/i });
+      await userEvent.click(dismissBtn);
+
+      expect(
+        screen.queryByText(/horizontal scroll enabled for wide dataset viewing/i)
+      ).not.toBeInTheDocument();
+    });
   });
 });

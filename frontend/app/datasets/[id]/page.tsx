@@ -8,6 +8,10 @@ import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Database,
   FileSpreadsheet,
   FileText,
@@ -16,6 +20,7 @@ import {
   Search,
   Table as TableIcon,
   Trash2,
+  X,
 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { api, ApiError } from "@/lib/api";
@@ -78,6 +83,9 @@ export function DatasetDetailContent({ id }: { id: string }) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Scroll hint dismiss state
+  const [scrollHintDismissed, setScrollHintDismissed] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -336,6 +344,29 @@ export function DatasetDetailContent({ id }: { id: string }) {
             </Button>
           </div>
         </div>
+
+        {/* Deletion incomplete alert banner */}
+        {dataset.status === "deletion_failed" && (
+          <div className="mt-4 rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <AlertCircle className="h-5 w-5 shrink-0" />
+              <div>
+                <p className="font-semibold">Dataset deletion incomplete</p>
+                <p className="text-xs text-destructive/90">
+                  A previous attempt to remove storage files failed. You can safely retry permanent deletion.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setShowDeleteModal(true)}
+              className="cursor-pointer shrink-0 font-medium"
+            >
+              Retry Deletion
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Summary KPI Strip - Refinement A: Missing Values replaces internal storage details */}
@@ -355,9 +386,19 @@ export function DatasetDetailContent({ id }: { id: string }) {
         <div className="rounded-xl border border-border bg-card p-4 shadow-2xs">
           <p className="text-xs font-medium text-muted-foreground">Status</p>
           <div className="mt-1 flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            <span
+              className={`h-2 w-2 rounded-full ${
+                dataset.status === "ready"
+                  ? "bg-emerald-500"
+                  : dataset.status === "deleting"
+                  ? "bg-amber-500"
+                  : dataset.status === "deletion_failed"
+                  ? "bg-destructive"
+                  : "bg-muted-foreground"
+              }`}
+            />
             <p className="text-base sm:text-lg font-semibold capitalize text-foreground">
-              {dataset.status}
+              {dataset.status === "deletion_failed" ? "Deletion Failed" : dataset.status}
             </p>
           </div>
         </div>
@@ -372,7 +413,9 @@ export function DatasetDetailContent({ id }: { id: string }) {
                 </span>
               </>
             ) : (
-              "—"
+              <span className="text-sm sm:text-base font-normal text-muted-foreground">
+                Not computed
+              </span>
             )}
           </p>
         </div>
@@ -442,10 +485,21 @@ export function DatasetDetailContent({ id }: { id: string }) {
             ) : preview && preview.rows.length > 0 ? (
               <div>
                 {/* Horizontal scroll discoverability banner */}
-                <div className="px-4 py-2 bg-muted/20 border-b border-border/60 flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Horizontal scroll enabled for wide dataset viewing</span>
-                  <span className="font-mono">{preview.columns.length} columns</span>
-                </div>
+                {preview.columns.length > 5 && !scrollHintDismissed && (
+                  <div className="px-4 py-2 bg-muted/20 border-b border-border/60 flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Horizontal scroll enabled for wide dataset viewing</span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono">{preview.columns.length} columns</span>
+                      <button
+                        onClick={() => setScrollHintDismissed(true)}
+                        className="cursor-pointer hover:text-foreground p-0.5 rounded transition-colors"
+                        aria-label="Dismiss scroll hint"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <div className="overflow-x-auto max-h-[600px] relative">
                   <table className="w-full text-left border-collapse text-sm">
@@ -527,35 +581,72 @@ export function DatasetDetailContent({ id }: { id: string }) {
           </div>
 
           {/* Pagination bar */}
-          {preview && preview.total_rows > 0 && (
-            <div className="flex items-center justify-between px-2 text-sm text-muted-foreground">
-              <span>
-                Showing rows {previewOffset + 1} to{" "}
-                {Math.min(previewOffset + previewLimit, preview.total_rows)} of{" "}
-                {preview.total_rows.toLocaleString()}
-              </span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={previewOffset === 0 || previewLoading}
-                  onClick={() => setPreviewOffset((prev) => Math.max(0, prev - previewLimit))}
-                  className="cursor-pointer"
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={previewOffset + previewLimit >= preview.total_rows || previewLoading}
-                  onClick={() => setPreviewOffset((prev) => prev + previewLimit)}
-                  className="cursor-pointer"
-                >
-                  Next
-                </Button>
+          {preview && preview.total_rows > 0 && (() => {
+            const totalPages = Math.max(1, Math.ceil(preview.total_rows / previewLimit));
+            const currentPage = Math.floor(previewOffset / previewLimit) + 1;
+            const startRow = preview.rows.length === 0 ? 0 : previewOffset + 1;
+            const endRow = previewOffset + preview.rows.length;
+
+            return (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-2 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span>
+                    Showing rows {startRow.toLocaleString()}–{endRow.toLocaleString()} of{" "}
+                    {preview.total_rows.toLocaleString()}
+                  </span>
+                  <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border/50">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={previewOffset === 0 || previewLoading}
+                    onClick={() => setPreviewOffset(0)}
+                    aria-label="First page"
+                    className="cursor-pointer px-2 text-xs"
+                  >
+                    <ChevronsLeft className="h-4 w-4" />
+                    <span className="sr-only sm:not-sr-only sm:ml-1">First</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={previewOffset === 0 || previewLoading}
+                    onClick={() => setPreviewOffset((prev) => Math.max(0, prev - previewLimit))}
+                    aria-label="Previous page"
+                    className="cursor-pointer px-2.5 text-xs"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    <span className="sr-only sm:not-sr-only sm:ml-1">Previous</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={previewOffset + previewLimit >= preview.total_rows || previewLoading}
+                    onClick={() => setPreviewOffset((prev) => prev + previewLimit)}
+                    aria-label="Next page"
+                    className="cursor-pointer px-2.5 text-xs"
+                  >
+                    <span className="sr-only sm:not-sr-only sm:mr-1">Next</span>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={previewOffset + previewLimit >= preview.total_rows || previewLoading}
+                    onClick={() => setPreviewOffset((totalPages - 1) * previewLimit)}
+                    aria-label="Last page"
+                    className="cursor-pointer px-2 text-xs"
+                  >
+                    <span className="sr-only sm:not-sr-only sm:mr-1">Last</span>
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       )}
 
@@ -733,7 +824,7 @@ export function DatasetDetailContent({ id }: { id: string }) {
                         {col.is_high_cardinality && (
                           <div className="py-2.5 px-3 rounded-lg bg-muted/40 border border-border/40 text-xs text-muted-foreground mb-3">
                             <span className="font-medium text-foreground">High-cardinality text:</span>{" "}
-                            {col.distinct_count.toLocaleString()} unique values. Values are predominantly unique.
+                            {col.distinct_count.toLocaleString()} unique values. Values are mostly distinct and may represent identifiers or unstructured text.
                           </div>
                         )}
 
@@ -888,7 +979,7 @@ export function DatasetDetailContent({ id }: { id: string }) {
                     <span className="font-semibold text-foreground">Missing Cells:</span> Null or empty values where observation data was expected.
                   </div>
                   <div>
-                    <span className="font-semibold text-foreground">High Cardinality:</span> Columns with predominantly unique values, typical of identifiers.
+                    <span className="font-semibold text-foreground">High Cardinality:</span> Columns with predominantly unique values, which may indicate identifiers or unstructured text.
                   </div>
                   <div>
                     <span className="font-semibold text-foreground">Constant Columns:</span> Columns possessing identical values across all records with zero variance.

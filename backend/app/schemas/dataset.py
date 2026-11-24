@@ -7,6 +7,29 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class DatasetProfileSummary(BaseModel):
+    """Deterministic factual quality indicators summary."""
+
+    total_rows: int = 0
+    total_columns: int = 0
+    duplicate_rows: int = 0
+    missing_cells: int = 0
+    missing_percentage: float = 0.0
+    columns_with_missing: int = 0
+    all_null_columns_count: int = 0
+    constant_columns_count: int = 0
+
+
+class ColumnMissingBreakdown(BaseModel):
+    """Per-column missing values breakdown."""
+
+    name: str
+    logical_type: str
+    null_count: int
+    null_percentage: float
+    distinct_count: int
+
+
 class DatasetResponse(BaseModel):
     """Sanitized dataset response contract (never exposes internal storage paths)."""
 
@@ -27,7 +50,7 @@ class DatasetResponse(BaseModel):
         alias="schema_json",
         serialization_alias="schema_json",
     )
-    quality_summary: dict[str, Any] | None = None
+    quality_summary: DatasetProfileSummary | None = None
 
 
 class DatasetListResponse(BaseModel):
@@ -48,6 +71,8 @@ class DatasetPreviewResponse(BaseModel):
     total_rows: int
     offset: int
     limit: int
+    has_next: bool = False
+    has_previous: bool = False
 
 
 class DatasetProfileResponse(BaseModel):
@@ -60,9 +85,9 @@ class DatasetProfileResponse(BaseModel):
 class DatasetQualityResponse(BaseModel):
     """Deterministic data-quality findings and metrics."""
 
-    summary: dict[str, Any]
+    summary: DatasetProfileSummary
     quality_findings: list[dict[str, Any]]
-    columns_breakdown: list[dict[str, Any]] = Field(default_factory=list)
+    columns_breakdown: list[ColumnMissingBreakdown] = Field(default_factory=list)
 
 
 class DatasetDeleteResponse(BaseModel):

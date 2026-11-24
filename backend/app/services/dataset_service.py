@@ -11,6 +11,7 @@ from app.models.dataset import Dataset
 from app.services.duckdb_engine import duckdb_engine
 from app.services.parser import ParseValidationError, dataset_parser
 from app.services.storage import (
+    StorageDeletionError,
     storage_service,
 )
 from sqlalchemy import func, select
@@ -99,7 +100,10 @@ class DatasetService:
         except Exception as exc:
             # Cleanup on failure
             logger.warning("Dataset ingestion failed for '%s': %s", clean_filename, exc)
-            storage_service.delete_dataset_files(dataset_id)
+            try:
+                storage_service.delete_dataset_files(dataset_id)
+            except Exception as cleanup_err:
+                logger.error("Ingestion failure cleanup encountered storage error: %s", cleanup_err)
             await db.rollback()
             raise
 
@@ -208,19 +212,43 @@ class DatasetService:
     ) -> bool:
         """Delete dataset metadata from PostgreSQL and remove its files from storage.
 
-        Database commit acts as the primary system of record. Associated filesystem directories
-        are removed with structured recovery logging to prevent blocking user requests if disk
-        cleanup experiences transient delays.
+        Implements a deterministic, recoverable deletion lifecycle:
+        1. Query dataset ensuring authenticated ownership.
+        2. If dataset is already 'deleting', return True to handle concurrent requests idempotently.
+        3. Transition status to 'deleting' and commit so concurrent preview requests are blocked.
+        4. Attempt storage filesystem deletion.
+        5. If storage cleanup fails (StorageDeletionError or OSError):
+           Transition status to 'deletion_failed', record error message, and re-raise.
+           The dataset remains preserved for retry by the owner, but cannot be used as 'ready'.
+        6. If storage cleanup succeeds:
+           Remove metadata from PostgreSQL and commit.
         """
         dataset = await self.get_dataset(db, dataset_id, owner_id)
         if dataset is None:
             return False
 
-        await db.delete(dataset)
+        if dataset.status == "deleting":
+            return True
+
+        # Transition to deleting state
+        dataset.status = "deleting"
+        dataset.error_message = None
         await db.commit()
 
-        # Resilient file cleanup
-        storage_service.delete_dataset_files(dataset_id)
+        try:
+            storage_service.delete_dataset_files(dataset_id)
+        except (StorageDeletionError, OSError) as exc:
+            logger.error("Filesystem cleanup failed for dataset %s: %s", dataset_id, exc)
+            dataset.status = "deletion_failed"
+            dataset.error_message = f"Filesystem cleanup failed: {exc}"
+            await db.commit()
+            raise StorageDeletionError(
+                "Filesystem deletion failed. Dataset preserved in deletion_failed state for retry."
+            ) from exc
+
+        # Filesystem cleanup verified, remove metadata from database
+        await db.delete(dataset)
+        await db.commit()
         return True
 
 

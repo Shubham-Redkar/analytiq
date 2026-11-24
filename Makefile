@@ -56,6 +56,11 @@ help:
 	@echo "  API Inspection:"
 	@echo "    make health          Probe GET /api/v1/health (liveness)"
 	@echo "    make ready           Probe GET /api/v1/ready (readiness)"
+	@echo "    make llm-status      Probe GET /api/v1/analysis/status (LLM provider)"
+	@echo ""
+	@echo "  Analytical Engine & Evaluation (M3):"
+	@echo "    make test-analysis   Run deterministic analytical engine tests"
+	@echo "    make eval-analysis   Run reusable live analytical evaluation benchmark"
 	@echo ""
 	@echo "  Maintenance:"
 	@echo "    make clean           Remove temporary build artifacts and test caches"
@@ -186,6 +191,18 @@ health:
 ## ready: Query backend readiness endpoint (GET /api/v1/ready)
 ready:
 	@curl -i -sS --fail-with-body http://localhost:8000/api/v1/ready
+
+## llm-status: Query LLM provider diagnostic endpoint (GET /api/v1/analysis/status)
+llm-status:
+	@curl -i -sS --fail-with-body http://localhost:8000/api/v1/analysis/status
+
+## test-analysis: Run deterministic analytical engine tests via pytest
+test-analysis:
+	cd backend && uv run --locked pytest tests/test_analysis.py tests/test_analysis_api.py tests/test_llm.py
+
+## eval-analysis: Run reusable analytical model evaluation benchmark against Ollama
+eval-analysis:
+	cd backend && uv run --locked python scripts/eval_benchmark.py ollama
 
 # -----------------------------------------------------------------------------
 # Maintenance
