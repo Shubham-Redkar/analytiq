@@ -3,7 +3,7 @@
 import logging
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from langgraph.graph import END, StateGraph
 
@@ -518,7 +518,9 @@ def build_analytical_workflow_graph(
     # StateGraph Construction
     # -------------------------------------------------------------
 
-    workflow = StateGraph(WorkflowState)
+    # Note: cast to Any resolves IDE language server (Pyrefly/Pylance) strict
+    # protocol bound check against LangGraph's internal StateLike union.
+    workflow = StateGraph(cast(Any, WorkflowState))
 
     workflow.add_node(WorkflowNodeName.SUPERVISOR.value, supervisor_node)
     workflow.add_node(WorkflowNodeName.SCHEMA_GROUNDING.value, schema_grounding_node)
