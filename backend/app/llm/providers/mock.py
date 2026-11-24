@@ -60,7 +60,7 @@ class MockLLMProvider(LLMProvider):
                 content = json.dumps(next_resp)
                 structured = next_resp
             else:
-                content = str(next_resp)
+                content = next_resp
                 try:
                     loaded = json.loads(content)
                     structured = loaded if isinstance(loaded, dict) else None
