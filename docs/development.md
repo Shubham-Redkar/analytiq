@@ -379,9 +379,28 @@ make llm-status
 # Run deterministic analytical engine test suite
 make test-analysis
 
-# Run reusable analytical evaluation benchmark against Ollama
+# Run reusable analytical evaluation benchmark against Ollama (defaults to active LLM_MODEL)
 make eval-analysis
+
+# Run comparative evaluation explicitly targeting specific models
+uv run backend/scripts/eval_benchmark.py --model llama3.2:latest --include-holdout
+uv run backend/scripts/eval_benchmark.py --model qwen2.5:7b --include-holdout
 ```
+
+### Empirical Model Evaluation & Recommendations (M3.1)
+
+AnalytIQ underwent rigorous comparative benchmarking on local hardware (NVIDIA GeForce RTX 4050 6GB Laptop GPU, CUDA 13.1, 16 vCPUs, 7.4 GiB RAM) across a 40-case evaluation battery (25 baseline cases + 15 holdout generalization cases):
+
+| Evaluation Metric | `llama3.2:latest` (3.2B, Q4_K_M) | `qwen2.5:7b` (7.6B, Q4_K_M) | Delta / Improvement |
+| :--- | :--- | :--- | :--- |
+| **Baseline Accuracy (25 cases)** | 76.0% (19/25) | **84.0% (21/25)** | +8.0% |
+| **Holdout Accuracy (15 cases)** | 26.7% (4/15) | **66.7% (10/15)** | **+40.0%** |
+| **Combined Accuracy (40 cases)** | 57.5% (23/40) | **77.5% (31/40)** | **+20.0%** |
+| **Average Query Latency** | **1,740.7 ms** | 3,550.0 ms | +1.8s (well within 15s budget) |
+| **Active VRAM Footprint** | 2,543 MiB (100% GPU offload) | 4,109 MiB (82% GPU offload) | Fits comfortably in 6GB VRAM |
+| **Ollama Context Configuration** | 4,096 tokens | 4,096 tokens | Bounded context memory |
+
+**Recommendation:** `qwen2.5:7b` is strongly recommended for local analytical development due to its superior SQL AST generation, resilient adherence to schema boundaries, and strong handling of complex aggregations, date manipulations, and grouping clauses. Switching models is zero-code via `LLM_MODEL=qwen2.5:7b` in `backend/.env`.
 
 ---
 

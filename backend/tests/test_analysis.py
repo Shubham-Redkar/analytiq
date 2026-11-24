@@ -377,3 +377,62 @@ class TestAnalyticalServicePipeline:
         assert res.status == "query_rejected"
         assert "unapproved_function" in (res.error_message or "").lower()
         assert res.rows == []
+
+    @pytest.mark.asyncio
+    async def test_non_ready_dataset_rejected(self, test_dataset: Dataset) -> None:
+        test_dataset.status = "processing"
+        mock_provider = MockLLMProvider()
+        svc = AnalysisService(llm_provider=mock_provider)
+        res = await svc.run_analysis(test_dataset, "How many rows?")
+        assert res.status == "failed"
+        assert "ready" in (res.error_message or "").lower()
+
+    @pytest.mark.asyncio
+    async def test_evidence_fingerprints_determinism_and_sensitivity(
+        self,
+        test_dataset: Dataset,
+        test_parquet_file: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from app.analysis.evidence import compute_result_fingerprint
+
+        # Identical columns and rows yield identical fingerprint
+        cols = ["id", "val"]
+        rows1 = [[1, 10.0], [2, 20.0]]
+        rows2 = [[1, 10.0], [2, 20.0]]
+        fp1 = compute_result_fingerprint(cols, rows1)
+        fp2 = compute_result_fingerprint(cols, rows2)
+        assert fp1 == fp2
+
+        # Swapped columns or swapped values yield distinct fingerprint
+        rows_swapped_val = [[1, 20.0], [2, 10.0]]
+        fp3 = compute_result_fingerprint(cols, rows_swapped_val)
+        assert fp1 != fp3
+
+        # Swapped column order yields distinct fingerprint
+        cols_swapped = ["val", "id"]
+        fp4 = compute_result_fingerprint(cols_swapped, rows1)
+        assert fp1 != fp4
+
+        # Null vs empty string yields distinct fingerprint
+        fp_null = compute_result_fingerprint(["text"], [[None]])
+        fp_empty = compute_result_fingerprint(["text"], [[""]])
+        assert fp_null != fp_empty
+
+    @pytest.mark.asyncio
+    async def test_context_privacy_sample_exclusion_and_boundaries(
+        self, test_dataset: Dataset
+    ) -> None:
+        from app.analysis.context_builder import build_dataset_context
+
+        # Default excludes raw samples
+        ctx_default = build_dataset_context(test_dataset)
+        for col in ctx_default.columns:
+            # High cardinality or non-discrete columns must have 0 samples
+            if col.name == "val":
+                assert len(col.sample_values) == 0
+
+        # When include_samples=True, samples are populated but bounded
+        ctx_samples = build_dataset_context(test_dataset, include_samples=True)
+        for col in ctx_samples.columns:
+            assert len(col.sample_values) <= 5
