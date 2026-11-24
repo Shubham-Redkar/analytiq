@@ -3,11 +3,12 @@
 import io
 import uuid
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import openpyxl
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import verify_test_database_identity
 
@@ -431,6 +432,169 @@ class TestDatasetDeletion:
         response = await client.delete(f"/api/v1/datasets/{uuid.uuid4()}")
         assert response.status_code == 404
 
+    async def test_delete_missing_source_file_idempotent(self, client: AsyncClient) -> None:
+        """Deleting a dataset where the source file was already removed succeeds idempotently."""
+        await register_and_login(client, "idempotent_src@example.com", "Idempotent Source")
+        up_res = await client.post(
+            "/api/v1/datasets",
+            files={"file": ("to_del_src.csv", make_csv_bytes(["a"], [[1]]), "text/csv")},
+        )
+        ds_id = uuid.UUID(up_res.json()["id"])
+        from app.services.storage import storage_service
+
+        upload_path = storage_service.get_upload_file_path(ds_id, ".csv")
+        if upload_path.exists():
+            upload_path.unlink()
+
+        del_res = await client.delete(f"/api/v1/datasets/{ds_id}")
+        assert del_res.status_code == 200
+        assert (await client.get(f"/api/v1/datasets/{ds_id}")).status_code == 404
+
+    async def test_delete_missing_parquet_file_idempotent(self, client: AsyncClient) -> None:
+        """Deleting a dataset where the parquet file was already removed succeeds idempotently."""
+        await register_and_login(client, "idempotent_pq@example.com", "Idempotent Parquet")
+        up_res = await client.post(
+            "/api/v1/datasets",
+            files={"file": ("to_del_pq.csv", make_csv_bytes(["a"], [[1]]), "text/csv")},
+        )
+        ds_id = uuid.UUID(up_res.json()["id"])
+        from app.services.storage import storage_service
+
+        pq_path = storage_service.get_parquet_file_path(ds_id)
+        if pq_path.exists():
+            pq_path.unlink()
+
+        del_res = await client.delete(f"/api/v1/datasets/{ds_id}")
+        assert del_res.status_code == 200
+        assert (await client.get(f"/api/v1/datasets/{ds_id}")).status_code == 404
+
+    async def test_delete_filesystem_failure_sets_deletion_failed_and_preserves_metadata(
+        self, client: AsyncClient
+    ) -> None:
+        """When disk removal fails with OSError, dataset transitions to deletion_failed."""
+        await register_and_login(client, "fail_del@example.com", "Fail Del")
+        up_res = await client.post(
+            "/api/v1/datasets",
+            files={"file": ("disk_fail.csv", make_csv_bytes(["a"], [[1]]), "text/csv")},
+        )
+        ds_id = up_res.json()["id"]
+
+        with patch("shutil.rmtree", side_effect=PermissionError("Permission denied")):
+            del_res = await client.delete(f"/api/v1/datasets/{ds_id}")
+            assert del_res.status_code == 500
+            assert "deletion retry" in del_res.json()["detail"].lower()
+
+        # Metadata MUST be preserved in database with status 'deletion_failed'
+        detail_res = await client.get(f"/api/v1/datasets/{ds_id}")
+        assert detail_res.status_code == 200
+        assert detail_res.json()["status"] == "deletion_failed"
+
+        # Preview must be rejected when dataset is in deletion_failed state
+        prev_res = await client.get(f"/api/v1/datasets/{ds_id}/preview")
+        assert prev_res.status_code == 404
+
+        # Retrying deletion when filesystem error is resolved succeeds
+        retry_res = await client.delete(f"/api/v1/datasets/{ds_id}")
+        assert retry_res.status_code == 200
+        assert (await client.get(f"/api/v1/datasets/{ds_id}")).status_code == 404
+
+
+class TestDatasetFullPagination:
+    """Tests for full-dataset server-side preview pagination across large row counts."""
+
+    async def test_pagination_2500_rows_across_pages(self, client: AsyncClient) -> None:
+        """Verify navigation across entire 2,500-row dataset at varied offsets."""
+        await register_and_login(client, "paginator@example.com", "Paginator")
+
+        # Generate 2,500 deterministic rows: row 0 to 2499
+        rows = [[i, f"item_{i:04d}", i * 1.5] for i in range(2500)]
+        csv_bytes = make_csv_bytes(["row_id", "item_code", "val"], rows)
+
+        up_res = await client.post(
+            "/api/v1/datasets",
+            files={"file": ("large_2500.csv", csv_bytes, "text/csv")},
+        )
+        assert up_res.status_code == 201
+        ds_id = up_res.json()["id"]
+
+        # 1. Page 1: offset=0, limit=25
+        p1 = await client.get(f"/api/v1/datasets/{ds_id}/preview?offset=0&limit=25")
+        assert p1.status_code == 200
+        d1 = p1.json()
+        assert d1["total_rows"] == 2500
+        assert d1["offset"] == 0
+        assert d1["limit"] == 25
+        assert d1["has_next"] is True
+        assert d1["has_previous"] is False
+        assert len(d1["rows"]) == 25
+        assert d1["rows"][0]["row_id"] == 0
+        assert d1["rows"][24]["row_id"] == 24
+
+        # 2. Page 5: offset=100, limit=25
+        p5 = await client.get(f"/api/v1/datasets/{ds_id}/preview?offset=100&limit=25")
+        assert p5.status_code == 200
+        d5 = p5.json()
+        assert d5["has_next"] is True
+        assert d5["has_previous"] is True
+        assert len(d5["rows"]) == 25
+        assert d5["rows"][0]["row_id"] == 100
+        assert d5["rows"][24]["row_id"] == 124
+
+        # 3. Deep Page: offset=1000, limit=25
+        p1000 = await client.get(f"/api/v1/datasets/{ds_id}/preview?offset=1000&limit=25")
+        assert p1000.status_code == 200
+        d1000 = p1000.json()
+        assert d1000["has_next"] is True
+        assert d1000["has_previous"] is True
+        assert len(d1000["rows"]) == 25
+        assert d1000["rows"][0]["row_id"] == 1000
+        assert d1000["rows"][24]["row_id"] == 1024
+
+        # 4. Final Page: offset=2475, limit=25
+        p_last = await client.get(f"/api/v1/datasets/{ds_id}/preview?offset=2475&limit=25")
+        assert p_last.status_code == 200
+        d_last = p_last.json()
+        assert d_last["has_next"] is False
+        assert d_last["has_previous"] is True
+        assert len(d_last["rows"]) == 25
+        assert d_last["rows"][0]["row_id"] == 2475
+        assert d_last["rows"][24]["row_id"] == 2499
+
+        # 5. Offset beyond dataset: offset=2500, limit=25
+        p_beyond = await client.get(f"/api/v1/datasets/{ds_id}/preview?offset=2500&limit=25")
+        assert p_beyond.status_code == 200
+        d_beyond = p_beyond.json()
+        assert d_beyond["has_next"] is False
+        assert d_beyond["has_previous"] is True
+        assert len(d_beyond["rows"]) == 0
+
+        # 6. Verify deterministic ordering (consecutive pages have zero gaps and zero duplicates)
+        p_seq1 = await client.get(f"/api/v1/datasets/{ds_id}/preview?offset=500&limit=25")
+        p_seq2 = await client.get(f"/api/v1/datasets/{ds_id}/preview?offset=525&limit=25")
+        ids1 = [r["row_id"] for r in p_seq1.json()["rows"]]
+        ids2 = [r["row_id"] for r in p_seq2.json()["rows"]]
+        assert ids1 == list(range(500, 525))
+        assert ids2 == list(range(525, 550))
+        assert set(ids1).isdisjoint(set(ids2))
+
+    async def test_pagination_validation_bounds(self, client: AsyncClient) -> None:
+        """Negative offset or limit exceeding 100 are rejected with HTTP 422."""
+        await register_and_login(client, "bounds_user@example.com", "Bounds User")
+        csv_bytes = make_csv_bytes(["x"], [[1], [2]])
+        up_res = await client.post(
+            "/api/v1/datasets",
+            files={"file": ("small.csv", csv_bytes, "text/csv")},
+        )
+        ds_id = up_res.json()["id"]
+
+        # Negative offset
+        res_neg = await client.get(f"/api/v1/datasets/{ds_id}/preview?offset=-1")
+        assert res_neg.status_code == 422
+
+        # Limit > 100
+        res_high = await client.get(f"/api/v1/datasets/{ds_id}/preview?limit=101")
+        assert res_high.status_code == 422
+
 
 class TestDatasetRefinementsAndSecurityHardening:
     """Targeted regression tests for M2 UX, Quality, and Security Hardening."""
@@ -581,3 +745,40 @@ class TestDatasetRefinementsAndSecurityHardening:
         cols = {c["name"]: c for c in prev_data["columns"]}
         assert cols["num"]["logical_type"] == "integer"
         assert cols["text"]["logical_type"] == "string"
+
+    async def test_older_dataset_metadata_without_summary_or_breakdown(
+        self, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        """Older profile_json structures handle detail and quality endpoints safely."""
+        from app.models.dataset import Dataset
+
+        user_info = await register_and_login(client, "legacy.user@example.com", "Legacy User")
+        user_id = uuid.UUID(user_info["id"])
+
+        legacy_ds_id = uuid.uuid4()
+        legacy_ds = Dataset(
+            id=legacy_ds_id,
+            owner_id=user_id,
+            name="legacy_data",
+            original_filename="legacy.csv",
+            file_format="CSV",
+            file_size_bytes=1024,
+            row_count=10,
+            column_count=2,
+            status="ready",
+            storage_key=str(legacy_ds_id),
+            schema_json={"columns": [{"name": "a", "logical_type": "integer"}], "row_count": 10},
+            profile_json={"columns": []},  # Lacks "summary" and "columns_breakdown"
+        )
+        db_session.add(legacy_ds)
+        await db_session.commit()
+
+        # GET detail returns quality_summary as None
+        det_res = await client.get(f"/api/v1/datasets/{legacy_ds_id}")
+        assert det_res.status_code == 200
+        assert det_res.json()["quality_summary"] is None
+
+        # GET quality returns empty breakdown and default summary without 500 error
+        qual_res = await client.get(f"/api/v1/datasets/{legacy_ds_id}/quality")
+        assert qual_res.status_code == 200
+        assert qual_res.json()["columns_breakdown"] == []
