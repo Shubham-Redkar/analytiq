@@ -52,6 +52,8 @@ export interface DatasetPreviewResponse {
   total_rows: number;
   offset: number;
   limit: number;
+  has_next?: boolean;
+  has_previous?: boolean;
 }
 
 export interface ColumnProfile {
