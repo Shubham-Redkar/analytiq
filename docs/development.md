@@ -314,10 +314,11 @@ curl -s -b cookies.txt http://localhost:8000/api/v1/datasets/<DATASET_ID>/qualit
 - **Dataset Upload (`/datasets/upload`)**: Drag-and-drop file upload zone, client validation (25 MiB limit, `.csv` or `.xlsx` extension), optional custom dataset name, upload progress indicator, and error banners.
 - **Dataset Exploration (`/datasets/[id]`)**:
   - **Overview Strip**: Key metrics (rows, columns, format, size, status, timestamp) and user-facing **Missing Values** KPI card displaying total missing cells and percentages (internal Parquet storage details abstracted away).
-  - **Data Preview Tab**: Paginated grid powered by DuckDB with sticky row numbers (`#`), sticky headers, friendly display types (Integer, Text, Decimal, Boolean, Date, Date & Time), right-aligned numeric cells, distinct italic `null` styling, and horizontal scroll hints.
+  - **Data Preview Tab**: Full-dataset server-side paginated grid powered by DuckDB with deterministic sequential row ordering (`threads=1`, `preserve_insertion_order=true`). Features First (`<<`), Previous (`<`), Next (`>`), Last (`>>`) navigation, direct page indicator (`Page X of Y`), en-dash range count (`Showing rows X–Y of Z`), sticky row numbers (`#`), sticky headers, friendly display types (Integer, Text, Decimal, Boolean, Date, Date & Time), right-aligned numeric cells, distinct italic `null` styling, and dismissible horizontal scroll hints.
   - **Schema Definition Tab**: Full list of columns with physical types, inferred logical types, nullable indicators, and sample values.
   - **Column Profiling Tab**: Statistical cards per column with interactive column search, type filter buttons (All, Numeric, Text, Date/Time, Boolean), discrete categorical frequency summaries for low-cardinality integers, and clear high-cardinality text explanations.
-  - **Data Quality Tab**: Deterministic findings cards with natural grammatical phrasing, prioritized per-column missing values breakdown table, and clear educational descriptions for all measured indicators.
+  - **Data Quality Tab**: Deterministic factual findings cards with natural grammatical phrasing, prioritized per-column missing values breakdown table, and clear educational descriptions for all measured indicators (no arbitrary composite quality scores).
+  - **Recoverable Deletion**: Deletion lifecycle transitions datasets through `ready` -> `deleting` -> `deleted` or `deletion_failed`. If filesystem cleanup encounters unexpected permission or I/O errors, metadata is preserved and an actionable warning banner with "Retry Deletion" is displayed.
 
 ---
 
