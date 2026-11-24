@@ -63,10 +63,10 @@ class RestrictedQueryExecutor:
         parquet_path: Path,
         approved_sql: str,
         timeout_seconds: float | None = None,
-    ) -> tuple[list[str], list[str], list[list[Any]], float]:
+    ) -> tuple[list[str], list[str], list[list[Any]], float, bool]:
         """Execute approved SQL query against the specified Parquet file.
 
-        Returns: (column_names, column_types, rows, duration_ms)
+        Returns: (column_names, column_types, rows, duration_ms, truncated)
         """
         deadline = timeout_seconds or self.query_timeout_seconds
         loop = asyncio.get_running_loop()
@@ -85,7 +85,7 @@ class RestrictedQueryExecutor:
         parquet_path: Path,
         approved_sql: str,
         deadline_seconds: float,
-    ) -> tuple[list[str], list[str], list[list[Any]], float]:
+    ) -> tuple[list[str], list[str], list[list[Any]], float, bool]:
         """Synchronous worker thread that executes the query and handles interruption."""
         if not parquet_path.exists():
             raise QueryExecutionError(f"Dataset Parquet storage not found at {parquet_path}.")
@@ -94,50 +94,36 @@ class RestrictedQueryExecutor:
         con = duckdb.connect(database=":memory:")
         start_time = time.perf_counter()
 
+        # 2. Timer-based interrupt mechanism covering the entire execution lifecycle
+        interrupted = False
+
+        def interrupt_callback() -> None:
+            nonlocal interrupted
+            interrupted = True
+            try:
+                con.interrupt()
+            except Exception as ex:
+                logger.debug("Interrupt callback exception: %s", ex)
+
+        import threading
+
+        timer = threading.Timer(deadline_seconds, interrupt_callback)
+        timer.start()
+
         try:
-            # 2. Strict Defense-in-Depth configuration
+            # 3. Strict Defense-in-Depth configuration & Table materialization
             con.execute(f"SET max_memory = '{self.memory_limit}';")
             con.execute(f"SET threads = {self.threads};")
-            con.execute("SET enable_external_access = false;")
-            con.execute("SET lock_configuration = true;")
 
-            # 3. Bind the authorized parquet file strictly to the relation 'dataset'
-            # Note: enable_external_access=false prevents arbitrary file reads,
-            # so we register the table view using a view definition pointing to the authorized path
-            # before or with safe binding.
-            # In DuckDB, read_parquet is blocked if external_access=false, so we must register
-            # a DuckDB PyArrow or table directly, or set external_access after creating view.
-            # Let's test the safe sequence: connect, register view, lock access.
-            con.close()
-
-            # Clean setup:
-            con = duckdb.connect(database=":memory:")
-            con.execute(f"SET max_memory = '{self.memory_limit}';")
-            con.execute(f"SET threads = {self.threads};")
-            # In-memory relation bound to the authorized Parquet file
             escaped_path = str(parquet_path.resolve()).replace("'", "''")
             view_sql = f"CREATE TABLE dataset AS SELECT * FROM read_parquet('{escaped_path}');"  # noqa: S608
             con.execute(view_sql)
-            # Now lock external access so the query cannot read other files or network
+
+            # Lock external access so the query cannot read other files or network
             con.execute("SET enable_external_access = false;")
             con.execute("SET lock_configuration = true;")
 
-            # 4. Timer-based interrupt mechanism
-            interrupted = False
-
-            def interrupt_callback() -> None:
-                nonlocal interrupted
-                interrupted = True
-                try:
-                    con.interrupt()
-                except Exception as ex:
-                    logger.debug("Interrupt callback exception: %s", ex)
-
-            import threading
-
-            timer = threading.Timer(deadline_seconds, interrupt_callback)
-            timer.start()
-
+            # 4. Execute approved analytical query
             try:
                 rel = con.execute(approved_sql)
                 col_names = [desc[0] for desc in rel.description] if rel.description else []
@@ -153,16 +139,18 @@ class RestrictedQueryExecutor:
                         f"Analytical query timed out after {deadline_seconds}s."
                     ) from e
                 raise QueryExecutionError(f"DuckDB execution error: {e}") from e
-            finally:
-                timer.cancel()
 
             duration_ms = (time.perf_counter() - start_time) * 1000.0
 
-            # 5. Result serialization and payload limits
+            # 5. Result serialization, N+1 truncation handling, and payload limits
+            # If executor fetched max_result_rows + 1 rows, query is truncated
+            is_truncated = len(raw_rows) > self.max_result_rows
+            capped_raw_rows = raw_rows[: self.max_result_rows] if is_truncated else raw_rows
+
             rows: list[list[Any]] = []
             total_bytes = 0
 
-            for raw_row in raw_rows:
+            for raw_row in capped_raw_rows:
                 converted_row = [_json_safe_cell(c) for c in raw_row]
                 rows.append(converted_row)
                 # Approximate byte count check
@@ -177,9 +165,10 @@ class RestrictedQueryExecutor:
                         f"{self.max_result_bytes} bytes."
                     )
 
-            return col_names, col_types, rows, duration_ms
+            return col_names, col_types, rows, duration_ms, is_truncated
 
         finally:
+            timer.cancel()
             try:
                 con.close()
             except Exception as ce:

@@ -44,6 +44,7 @@ class AnalysisQueryResponse(BaseModel):
     columns: list[AnalyticalResultColumn] = Field(default_factory=list)
     rows: list[list[Any]] = Field(default_factory=list)
     returned_row_count: int = 0
+    dataset_row_count: int | None = None
     total_row_count: int | None = None
     truncated: bool = False
     clarification_question: str | None = None

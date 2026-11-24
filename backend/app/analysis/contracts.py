@@ -123,6 +123,8 @@ class ExecutionEvidence(BaseModel):
     executed_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     row_count: int
     column_count: int
+    dataset_row_count: int | None = None
+    returned_row_count: int = 0
     truncated: bool = False
     result_fingerprint: str
     query_duration_ms: float
@@ -153,6 +155,7 @@ class AnalyticalQueryResult(BaseModel):
     columns: list[AnalyticalResultColumn] = Field(default_factory=list)
     rows: list[list[Any]] = Field(default_factory=list)
     returned_row_count: int = 0
+    dataset_row_count: int | None = None
     total_row_count: int | None = None
     truncated: bool = False
     clarification_question: str | None = None

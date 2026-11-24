@@ -208,7 +208,13 @@ class AnalysisService:
 
             # 8. Execute in Restricted DuckDB
             try:
-                col_names, col_types, rows, query_duration_ms = await self.executor.execute_query(
+                (
+                    col_names,
+                    col_types,
+                    rows,
+                    query_duration_ms,
+                    is_truncated,
+                ) = await self.executor.execute_query(
                     parquet_path=parquet_path,
                     approved_sql=approved_sql,
                 )
@@ -236,7 +242,6 @@ class AnalysisService:
             total_duration_ms = (time.perf_counter() - start_time) * 1000.0
 
             # 9. Build Verifiable Execution Evidence
-            is_truncated = len(rows) >= self.settings.analysis_max_result_rows
             token_usage = {
                 "input_tokens": plan_meta.get("input_tokens"),
                 "output_tokens": plan_meta.get("output_tokens"),
@@ -253,6 +258,7 @@ class AnalysisService:
                 provider=plan_meta.get("provider", "unknown"),
                 model=plan_meta.get("model", self.settings.llm_model),
                 prompt_version=PROMPT_VERSION,
+                dataset_row_count=dataset.row_count,
                 truncated=is_truncated,
                 correction_attempts=correction_attempts,
                 token_usage=token_usage,
@@ -273,6 +279,7 @@ class AnalysisService:
                 columns=result_columns,
                 rows=rows,
                 returned_row_count=len(rows),
+                dataset_row_count=dataset.row_count,
                 total_row_count=dataset.row_count,
                 truncated=is_truncated,
                 evidence=evidence,
