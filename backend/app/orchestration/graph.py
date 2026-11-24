@@ -376,7 +376,21 @@ def build_analytical_workflow_graph(
                 "error_message": str(e),
                 "trace_events": tracer.get_events(),
             }
-        except (QueryExecutionError, QueryResourceLimitError, Exception) as e:
+        except QueryResourceLimitError as e:
+            duration_ms = (time.monotonic() - t0) * 1000
+            tracer.record(
+                node=WorkflowNodeName.EXECUTOR,
+                action="execute_resource_limit",
+                duration_ms=duration_ms,
+                status="resource_limit_exceeded",
+                details={"error": str(e)},
+            )
+            return {
+                "status": OrchestrationStatus.FAILED,
+                "error_message": str(e),
+                "trace_events": tracer.get_events(),
+            }
+        except (QueryExecutionError, Exception) as e:
             duration_ms = (time.monotonic() - t0) * 1000
             tracer.record(
                 node=WorkflowNodeName.EXECUTOR,
