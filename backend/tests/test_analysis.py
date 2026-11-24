@@ -170,17 +170,17 @@ class TestSQLSecurityPolicy:
         assert res.error_message is not None
 
     def test_outer_limit_enforcement(self, sample_context: DatasetAnalyticalContext) -> None:
-        # User query without limit gets max_result_rows appended
+        # User query without limit gets max_result_rows + 1 appended for N+1 truncation detection
         res = self.validator.validate('SELECT "Fare" FROM dataset', sample_context)
         assert res.is_valid is True
-        assert "LIMIT 100" in (res.normalized_sql or "")
+        assert "LIMIT 101" in (res.normalized_sql or "")
 
-        # User query with higher limit gets clamped
+        # User query with higher limit gets clamped to max_result_rows + 1
         res2 = self.validator.validate('SELECT "Fare" FROM dataset LIMIT 500', sample_context)
         assert res2.is_valid is True
-        assert "LIMIT 100" in (res2.normalized_sql or "")
+        assert "LIMIT 101" in (res2.normalized_sql or "")
 
-        # User query with smaller limit is preserved
+        # User query with smaller limit is preserved exactly
         res3 = self.validator.validate('SELECT "Fare" FROM dataset LIMIT 5', sample_context)
         assert res3.is_valid is True
         assert "LIMIT 5" in (res3.normalized_sql or "")
@@ -211,7 +211,7 @@ class TestDuckDBRestrictedExecutor:
             'SELECT "label", AVG("val") AS avg_v FROM dataset WHERE "val" IS NOT NULL '
             'GROUP BY "label" ORDER BY "label"'
         )
-        cols, _types, rows, dur = await executor.execute_query(
+        cols, _types, rows, dur, is_truncated = await executor.execute_query(
             parquet_path=test_parquet_file,
             approved_sql=query,
         )
@@ -221,6 +221,18 @@ class TestDuckDBRestrictedExecutor:
         assert rows[0][0] == "Alpha"
         assert rows[0][1] == 10.5
         assert dur > 0
+        assert is_truncated is False
+
+    @pytest.mark.asyncio
+    async def test_n_plus_one_truncation_detection(self, test_parquet_file: Path) -> None:
+        # If max_result_rows is 2, query requesting all rows should be marked truncated
+        executor = RestrictedQueryExecutor(max_result_rows=2, query_timeout_seconds=5.0)
+        _cols, _types, rows, _dur, is_truncated = await executor.execute_query(
+            parquet_path=test_parquet_file,
+            approved_sql="SELECT * FROM dataset",
+        )
+        assert is_truncated is True
+        assert len(rows) == 2
 
     @pytest.mark.asyncio
     async def test_defense_in_depth_blocks_arbitrary_files(self, test_parquet_file: Path) -> None:

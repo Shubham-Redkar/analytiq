@@ -13,6 +13,7 @@ from typing import Any
 import pyarrow.parquet as pq
 from app.analysis.benchmark import (
     BENCHMARK_CASES,
+    HOLDOUT_BENCHMARK_CASES,
     create_benchmark_synthetic_dataset,
 )
 from app.analysis.service import AnalysisService
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 async def run_benchmark(
     provider_name: str = "ollama",
     model_name: str | None = None,
+    suite: str = "all",
 ) -> None:
     """Run all benchmark cases against the requested LLM provider."""
     settings = get_settings()
@@ -79,6 +81,13 @@ async def run_benchmark(
     # Redirect parquet lookup to our temporary benchmark file
     service.storage.get_parquet_file_path = lambda did: parquet_path  # type: ignore[method-assign]
 
+    if suite == "base":
+        cases_to_run = BENCHMARK_CASES
+    elif suite == "holdout":
+        cases_to_run = HOLDOUT_BENCHMARK_CASES
+    else:
+        cases_to_run = BENCHMARK_CASES + HOLDOUT_BENCHMARK_CASES
+
     passed_count = 0
     failed_count = 0
     total_duration_ms = 0.0
@@ -88,7 +97,7 @@ async def run_benchmark(
 
     results_table: list[dict[str, Any]] = []
 
-    for case in BENCHMARK_CASES:
+    for case in cases_to_run:
         t0 = time.perf_counter()
         res = await service.run_analysis(dataset, case.question)
         dur_ms = (time.perf_counter() - t0) * 1000.0
@@ -128,11 +137,11 @@ async def run_benchmark(
         )
 
     print("=" * 80)
-    accuracy = (passed_count / len(BENCHMARK_CASES)) * 100.0
+    accuracy = (passed_count / len(cases_to_run)) * 100.0
     print(
-        f"TOTAL CASES: {len(BENCHMARK_CASES)} | PASSED: {passed_count} | "
+        f"TOTAL CASES: {len(cases_to_run)} | PASSED: {passed_count} | "
         f"FAILED: {failed_count} | ACCURACY: {accuracy:.1f}% | "
-        f"AVG LATENCY: {(total_duration_ms / len(BENCHMARK_CASES)):.1f}ms"
+        f"AVG LATENCY: {(total_duration_ms / len(cases_to_run)):.1f}ms"
     )
     print("=" * 80)
 
@@ -146,4 +155,5 @@ async def run_benchmark(
 if __name__ == "__main__":
     prov = sys.argv[1] if len(sys.argv) > 1 else "ollama"
     mod = sys.argv[2] if len(sys.argv) > 2 else None
-    asyncio.run(run_benchmark(provider_name=prov, model_name=mod))
+    s = sys.argv[3] if len(sys.argv) > 3 else "all"
+    asyncio.run(run_benchmark(provider_name=prov, model_name=mod, suite=s))
