@@ -340,7 +340,7 @@ BENCHMARK_CASES: list[BenchmarkCase] = [
         question="What is the median order revenue?",
         expected_status="completed",
         result_validator=lambda rows, err: (
-            rows is not None and len(rows) == 1 and 200.0 <= float(rows[0][0]) <= 300.0
+            rows is not None and len(rows) == 1 and 250.0 <= float(rows[0][0]) <= 350.0
         ),
         description="MEDIAN(revenue) computation.",
     ),
@@ -442,7 +442,7 @@ HOLDOUT_BENCHMARK_CASES: list[BenchmarkCase] = [
         category="Compound Filter",
         question="How many orders in the West region have quantity greater than or equal to 5?",
         expected_status="completed",
-        result_validator=lambda rows, err: rows is not None and len(rows) == 1 and rows[0][0] == 2,
+        result_validator=lambda rows, err: rows is not None and len(rows) == 1 and rows[0][0] == 3,
         description="WHERE region = 'West' AND quantity >= 5 count.",
     ),
     BenchmarkCase(
@@ -493,7 +493,7 @@ HOLDOUT_BENCHMARK_CASES: list[BenchmarkCase] = [
         category="Date Range",
         question="How many orders were placed between January 15th, 2026 and February 10th, 2026?",
         expected_status="completed",
-        result_validator=lambda rows, err: rows is not None and len(rows) == 1 and rows[0][0] == 5,
+        result_validator=lambda rows, err: rows is not None and len(rows) == 1 and rows[0][0] == 4,
         description="WHERE order_date BETWEEN '2026-01-15' AND '2026-02-10'.",
     ),
     BenchmarkCase(

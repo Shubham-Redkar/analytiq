@@ -78,6 +78,8 @@ async def run_benchmark(
         llm_provider=provider,
         settings=settings,
     )
+    # Ensure planner uses the target model rather than settings default
+    service.planner.model = target_model
     # Redirect parquet lookup to our temporary benchmark file
     service.storage.get_parquet_file_path = lambda did: parquet_path  # type: ignore[method-assign]
 
