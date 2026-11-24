@@ -7,22 +7,29 @@ from app.analysis.contracts import ColumnContext, DatasetAnalyticalContext
 from app.models.dataset import Dataset
 
 MAX_CONTEXT_COLUMNS = 200
-MAX_SAMPLE_VALUES_PER_COL = 3
-MAX_SAMPLE_VALUE_LEN = 50
+MAX_CATEGORICAL_VALUES_PER_COL = 5
+MAX_CATEGORICAL_VALUE_LEN = 30
+CATEGORICAL_DISTINCT_CEILING = 10
 
 
 class ContextBuilderError(Exception):
     """Raised when analytical context cannot be constructed."""
 
 
-def build_dataset_context(dataset: Dataset) -> DatasetAnalyticalContext:
+def build_dataset_context(
+    dataset: Dataset,
+    include_samples: bool = False,
+    include_categories: bool = True,
+) -> DatasetAnalyticalContext:
     """Build a deterministic, data-minimized analytical context from dataset metadata.
 
     Security & Privacy rules:
     - Never leaks internal storage paths or physical disk locations.
     - Strictly maps the table relation name to the fixed logical identifier 'dataset'.
     - Binds exact column names, logical types, physical types, and nullability.
-    - Limits distinct sample values to small non-sensitive representations.
+    - Excludes raw sample values by default to prevent data leakage and prompt contamination.
+    - Categorical context: bounded to low-cardinality discrete columns (distinct_count <= 10)
+      with sanitized representation (max 5 distinct categories, truncated to 30 chars).
     - Treats all dataset strings (name, column names) as untrusted metadata.
     """
     if dataset.status != "ready":
@@ -46,24 +53,45 @@ def build_dataset_context(dataset: Dataset) -> DatasetAnalyticalContext:
         if not col_name:
             continue
 
-        raw_samples = col.get("sample_values", [])
+        distinct_cnt = col.get("distinct_count")
+        logical_type = str(col.get("logical_type", "string")).lower()
+
         safe_samples: list[Any] = []
-        if isinstance(raw_samples, list):
-            for s in raw_samples[:MAX_SAMPLE_VALUES_PER_COL]:
-                if s is None:
-                    continue
-                s_str = str(s)
-                if len(s_str) > MAX_SAMPLE_VALUE_LEN:
-                    s_str = s_str[:MAX_SAMPLE_VALUE_LEN] + "..."
-                safe_samples.append(s_str)
+        # Privacy policy: Only include discrete categories if explicitly requested,
+        # column is categorical/string, and distinct count is within small ceiling.
+        if include_samples:
+            raw_samples = col.get("sample_values", [])
+            if isinstance(raw_samples, list):
+                for s in raw_samples[:MAX_CATEGORICAL_VALUES_PER_COL]:
+                    if s is None:
+                        continue
+                    s_str = str(s)
+                    if len(s_str) > MAX_CATEGORICAL_VALUE_LEN:
+                        s_str = s_str[:MAX_CATEGORICAL_VALUE_LEN] + "..."
+                    safe_samples.append(s_str)
+        elif (
+            include_categories
+            and distinct_cnt is not None
+            and distinct_cnt <= CATEGORICAL_DISTINCT_CEILING
+            and logical_type in ("string", "category", "boolean")
+        ):
+            raw_samples = col.get("sample_values", [])
+            if isinstance(raw_samples, list):
+                for s in raw_samples[:MAX_CATEGORICAL_VALUES_PER_COL]:
+                    if s is None:
+                        continue
+                    s_str = str(s)
+                    if len(s_str) > MAX_CATEGORICAL_VALUE_LEN:
+                        s_str = s_str[:MAX_CATEGORICAL_VALUE_LEN] + "..."
+                    safe_samples.append(s_str)
 
         columns.append(
             ColumnContext(
                 name=col_name,
                 physical_type=str(col.get("physical_type", "VARCHAR")),
-                logical_type=str(col.get("logical_type", "string")),
+                logical_type=logical_type,
                 nullable=bool(col.get("nullable", True)),
-                distinct_count=col.get("distinct_count"),
+                distinct_count=distinct_cnt,
                 sample_values=safe_samples,
             )
         )

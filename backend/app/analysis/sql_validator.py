@@ -263,6 +263,17 @@ class SQLSecurityValidator:
 
         referenced_tables: set[str] = set()
         for table_node in root.find_all(exp.Table):
+            # Check for catalog or schema qualification (e.g. pg_catalog.pg_tables or db.tbl)
+            if table_node.db or table_node.catalog:
+                return SQLValidationResult(
+                    is_valid=False,
+                    category=SQLValidationCategory.UNAUTHORIZED_RELATION,
+                    error_message=(
+                        f"Qualified relation '{table_node.sql()}' is strictly prohibited. "
+                        "Queries may only access 'dataset'."
+                    ),
+                )
+
             t_name = table_node.name.lower()
             referenced_tables.add(t_name)
             if t_name != "dataset" and t_name not in valid_cte_names:
@@ -318,14 +329,15 @@ class SQLSecurityValidator:
                 requested_limit = None
 
         # Apply safe limit enforcement without modifying subqueries/aggregations
-        # If user did not supply LIMIT or supplied > max_result_rows, enforce max_result_rows
+        # If user did not supply LIMIT or supplied > max_result_rows, enforce max_result_rows + 1
+        # for deterministic N+1 truncation detection by the executor.
+        # If user explicitly supplied limit <= max_result_rows, preserve user limit exactly.
         enforced_root = root.copy()
+        fetch_limit = self.max_result_rows + 1
         if not has_user_limit:
-            enforced_root = enforced_root.limit(self.max_result_rows)
+            enforced_root = enforced_root.limit(fetch_limit)
         elif requested_limit is not None and requested_limit > self.max_result_rows:
-            enforced_root.set(
-                "limit", exp.Limit(expression=exp.Literal.number(self.max_result_rows))
-            )
+            enforced_root.set("limit", exp.Limit(expression=exp.Literal.number(fetch_limit)))
 
         normalized_sql = enforced_root.sql(dialect="duckdb")
 
