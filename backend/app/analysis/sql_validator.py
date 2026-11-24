@@ -222,6 +222,10 @@ class SQLSecurityValidator:
 
         # 6. Function validation (run first so file/system functions are identified)
         for func in root.find_all(exp.Func):
+            # In SQLGlot AST, binary connectors like exp.And / exp.Or inherit from exp.Func
+            if isinstance(func, (exp.Connector, exp.Binary)):
+                continue
+
             func_name = func.key.upper() if func.key else ""
             if not func_name:
                 continue
