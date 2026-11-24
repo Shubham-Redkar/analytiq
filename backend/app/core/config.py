@@ -130,7 +130,7 @@ class Settings(BaseSettings):
         description="Active LLM provider: 'ollama' or 'mock' (test/dev only).",
     )
     llm_model: str = Field(
-        default="llama3.2:latest",
+        default="qwen2.5:7b",
         description="Model identifier for the active LLM provider.",
     )
     ollama_base_url: str = Field(
