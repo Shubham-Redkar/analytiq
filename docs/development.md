@@ -322,7 +322,70 @@ curl -s -b cookies.txt http://localhost:8000/api/v1/datasets/<DATASET_ID>/qualit
 
 ---
 
-## 10. Quality Gates & Continuous Integration
+## 10. Milestone M3: LLM Provider & Secure Analytical Query Engine
+
+Milestone M3 introduces a provider-independent AI analytical foundation that converts natural language into structured analytical plans, generates SQL, validates SQL through deterministic AST security policies, executes approved queries in restricted DuckDB, and returns structured computed results with traceable execution provenance.
+
+### Core Architectural Principle
+> **"AI plans and interprets. Deterministic tools calculate. Evidence validates. AnalytIQ explains."**
+
+The LLM is strictly treated as an untrusted analytical planner. It never directly accesses PostgreSQL, filesystems, DuckDB connections, or network interfaces, and never acts as a calculator.
+
+### Architecture Components
+
+1. **Provider-Independent LLM Abstraction (`app/llm/`)**:
+   - `LLMProvider` async protocol with `generate()`, `health_check()`, and `close()`.
+   - `OllamaProvider`: Native `/api/chat` integration using `httpx` with structured JSON schema format, connection reuse, timeouts, and diagnostic tags inspection.
+   - `MockLLMProvider`: Deterministic test double supporting canned responses, error simulation, and offline CI execution without Ollama or GPU dependencies.
+   - `create_llm_provider()` factory: Dependency injection based on `LLM_PROVIDER` environment variable (`ollama` or `mock`).
+
+2. **Dataset Analytical Context Builder (`app/analysis/context_builder.py`)**:
+   - Authorized dataset schema extractor binding columns, physical types, logical types, and bounded sample values.
+   - Fixed virtual relation identifier: `dataset`.
+   - Untrusted metadata sanitization protecting against prompt injection.
+
+3. **Structured Analytical Plan (`app/analysis/planner.py`)**:
+   - Strict Pydantic contracts: `status` (`ready`, `needs_clarification`, `unsupported`), `intent`, `operation`, `referenced_columns`, `sql`, `assumptions`.
+   - Versioned prompts (`PROMPT_VERSION = "2026.03.v2"`).
+   - Rejects ungrounded operations, predictions, or modifications.
+
+4. **AST-Based SQL Security Policy (`app/analysis/sql_validator.py`)**:
+   - SQLGlot DuckDB AST parser implementing deny-by-default security rules.
+   - Forbids multiple statements, DDL/DML, PRAGMAs, ATTACH, transactions, and file/network reading functions (`read_parquet`, `read_csv`, `glob`).
+   - Restricts queries strictly to the authorized relation `dataset` (and non-recursive CTE aliases).
+   - Schema column validation rejecting nonexistent columns or unauthorized fields.
+   - Enforces query complexity limits and application-level outer `LIMIT 1000`.
+
+5. **Restricted DuckDB Query Executor (`app/analysis/query_executor.py`)**:
+   - Dedicated in-memory connection per query (`duckdb.connect(":memory:")`).
+   - In-memory table binding with `enable_external_access = false;` and `lock_configuration = true;`.
+   - Timer-based thread query interruption (`con.interrupt()`) enforcing execution deadlines.
+   - Result serialization and payload byte size caps.
+
+6. **Execution Evidence & Provenance (`app/analysis/evidence.py`)**:
+   - Computes deterministic SHA-256 fingerprints of dataset schema and canonical JSON query results.
+   - Captures query duration, total processing duration, provider, model, prompt version, and token usage.
+
+7. **Analytical Query API**:
+   - `POST /api/v1/datasets/{dataset_id}/query`: Authenticated, user-owned dataset querying.
+   - `GET /api/v1/analysis/status`: Diagnostic health check for analytical availability and LLM provider reachability.
+
+### Developer Workflow Commands
+
+```bash
+# Check Ollama connectivity and model status
+make llm-status
+
+# Run deterministic analytical engine test suite
+make test-analysis
+
+# Run reusable analytical evaluation benchmark against Ollama
+make eval-analysis
+```
+
+---
+
+## 11. Quality Gates & Continuous Integration
 
 Run the comprehensive quality gate check locally before committing changes:
 ```bash
