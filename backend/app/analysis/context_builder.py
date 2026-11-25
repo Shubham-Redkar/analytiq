@@ -106,8 +106,43 @@ def build_dataset_context(
     )
 
 
-def serialize_context_for_prompt(context: DatasetAnalyticalContext) -> str:
-    """Serialize DatasetAnalyticalContext as a structured JSON string for LLM injection."""
+def estimate_text_tokens(text: str) -> int:
+    """Conservative token estimator for LLM chat requests.
+
+    Heuristic:
+    - Standard ASCII alphanumeric words: ~1 token per 3.5 characters.
+    - Punctuation, whitespace, JSON delimiters, brackets: 1 token each.
+    - CJK / Unicode characters: 1 token per character.
+    - Plus 15% safety margin to guarantee requests do not breach 4096 context window.
+    """
+    if not text:
+        return 0
+    raw_estimate = 0
+    current_word_len = 0
+    for char in text:
+        if char.isascii() and char.isalnum():
+            current_word_len += 1
+        else:
+            if current_word_len > 0:
+                raw_estimate += max(1, (current_word_len + 3) // 4)
+                current_word_len = 0
+            raw_estimate += 1
+    if current_word_len > 0:
+        raw_estimate += max(1, (current_word_len + 3) // 4)
+
+    # 15% safety margin
+    return int(raw_estimate * 1.15) + 1
+
+
+def serialize_context_for_prompt(
+    context: DatasetAnalyticalContext,
+    max_input_tokens: int = 2048,
+) -> str:
+    """Serialize DatasetAnalyticalContext as a structured JSON string for LLM injection.
+
+    Enforces that serialized schema does not exhaust the LLM's available input token budget.
+    Raises ContextBuilderError if the minimal schema representation cannot fit.
+    """
     dict_repr = {
         "relation_name": context.relation_name,
         "dataset_name": context.dataset_name,
@@ -123,4 +158,46 @@ def serialize_context_for_prompt(context: DatasetAnalyticalContext) -> str:
             for c in context.columns
         ],
     }
-    return json.dumps(dict_repr, indent=2)
+    rendered = json.dumps(dict_repr, indent=2)
+    estimated_tokens = estimate_text_tokens(rendered)
+
+    if estimated_tokens > max_input_tokens:
+        # Fall back to compact representation (no indent, minimal fields)
+        stripped_columns = [
+            {
+                "name": c.name,
+                "type": c.physical_type,
+                "logical_type": c.logical_type,
+            }
+            for c in context.columns
+        ]
+        compact_dict = {
+            "relation_name": context.relation_name,
+            "columns": stripped_columns,
+        }
+        rendered = json.dumps(compact_dict, separators=(",", ":"))
+        estimated_tokens = estimate_text_tokens(rendered)
+
+        # If still exceeding, selectively sample/prune to fit within max_input_tokens
+        if estimated_tokens > max_input_tokens:
+            # Keep as many columns as fit
+            fitted_cols: list[dict[str, Any]] = []
+            for col in stripped_columns:
+                trial = [*fitted_cols, col]
+                trial_dict = {"relation_name": context.relation_name, "columns": trial}
+                trial_tokens = estimate_text_tokens(json.dumps(trial_dict, separators=(",", ":")))
+                if trial_tokens <= max_input_tokens:
+                    fitted_cols.append(col)
+                else:
+                    break
+            if fitted_cols:
+                compact_dict["columns"] = fitted_cols
+                compact_dict["truncated"] = True
+                rendered = json.dumps(compact_dict, separators=(",", ":"))
+            else:
+                raise ContextBuilderError(
+                    f"Dataset schema requires an estimated {estimated_tokens} tokens, "
+                    f"exceeding the allocated input budget of {max_input_tokens} tokens."
+                )
+
+    return rendered

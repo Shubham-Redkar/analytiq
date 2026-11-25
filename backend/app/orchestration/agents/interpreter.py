@@ -6,6 +6,7 @@ execution evidence, with deterministic fallback if the LLM fails or is unavailab
 
 import json
 import logging
+import re
 from typing import Any
 
 from app.analysis.contracts import AnalyticalResultColumn, ExecutionEvidence
@@ -46,6 +47,52 @@ class ResultInterpreterAgent:
         self.model = model
         self.temperature = temperature
         self.timeout_seconds = timeout_seconds
+
+    def _verify_numerical_grounding(
+        self,
+        summary: str,
+        data_points: dict[str, Any],
+        rows: list[list[Any]],
+    ) -> bool:
+        """Verify that numeric claims in summary and data points are present in computed rows."""
+        # Collect all numeric values present in the computed result rows
+        valid_numbers: set[float] = set()
+        for row in rows:
+            for cell in row:
+                if isinstance(cell, (int, float)):
+                    valid_numbers.add(float(cell))
+                elif isinstance(cell, str):
+                    try:
+                        valid_numbers.add(float(cell))
+                    except ValueError:
+                        pass
+
+        # If the query produced rows but has no numbers, skip check
+        if not valid_numbers:
+            return True
+
+        # Check explicit data_points
+        for val in data_points.values():
+            if isinstance(val, (int, float)):
+                f_val = float(val)
+                # Allow row count as valid observation
+                if f_val == len(rows):
+                    continue
+                if not any(abs(f_val - target) < 0.001 for target in valid_numbers):
+                    return False
+
+        # Extract numeric tokens from summary
+        summary_numbers = re.findall(r"\b\d+(?:\.\d+)?\b", summary)
+        for num_str in summary_numbers:
+            f_num = float(num_str)
+            # Allow common sentence counts like "1 record", "2 rows", or years >= 1900
+            if f_num in (len(rows), 0.0, 1.0) or f_num >= 1900:
+                continue
+            # If a cited number is not in the computed results, fail grounding
+            if not any(abs(f_num - target) < 0.01 for target in valid_numbers):
+                return False
+
+        return True
 
     def _build_deterministic_fallback(
         self,
@@ -170,9 +217,22 @@ Provide a factual summary of these results adhering strictly to the JSON schema.
             if isinstance(raw_dict, dict) and "summary" in raw_dict:
                 pts = raw_dict.get("data_points")
                 data_points: dict[str, Any] = pts if isinstance(pts, dict) else {}
+                summary_str = str(raw_dict.get("summary", ""))
+                findings_list = [str(f) for f in raw_dict.get("key_findings", [])]
+
+                # Numerical Grounding Check:
+                # Any explicit numbers cited in the summary or data_points must be verified against
+                # the actual computed query rows to prevent ungrounded or hallucinated claims.
+                is_grounded = self._verify_numerical_grounding(summary_str, data_points, rows)
+                if not is_grounded:
+                    logger.warning(
+                        "Interpreter: LLM generated ungrounded numeric claims; falling back."
+                    )
+                    return self._build_deterministic_fallback(question, columns, rows, evidence)
+
                 return InterpretationOutput(
-                    summary=str(raw_dict.get("summary", "")),
-                    key_findings=[str(f) for f in raw_dict.get("key_findings", [])],
+                    summary=summary_str,
+                    key_findings=findings_list,
                     data_points=data_points,
                     caveats=[str(c) for c in raw_dict.get("caveats", [])],
                     is_fallback=False,

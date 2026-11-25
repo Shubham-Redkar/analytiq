@@ -520,10 +520,11 @@ def build_analytical_workflow_graph(
 
     # LangGraph's StateGraph binds StateT to
     # TypedDictLikeV1 | TypedDictLikeV2 | DataclassLike | BaseModel.
-    # Pyrefly suffers from a known subtyping bug where TypedDict undergoes
-    # premature erasure to dict[str, Any], causing false-positive bad-specialization.
-    # We suppress Pyrefly specifically while preserving full type safety for Pyright.
-    workflow = StateGraph(WorkflowState)  # pyrefly: ignore[bad-specialization]
+    # Pyrefly upstream issue #3745: TypedDict-to-dict erasure during subtyping runs
+    # before Protocol structural validation, falsely triggering bad-specialization.
+    # We suppress only this specific diagnostic rule on this line while preserving
+    # full structural type safety for Pyright, Mypy, and runtime LangGraph.
+    workflow = StateGraph(WorkflowState)  # type: ignore[bad-specialization]
 
     workflow.add_node(WorkflowNodeName.SUPERVISOR.value, supervisor_node)
     workflow.add_node(WorkflowNodeName.SCHEMA_GROUNDING.value, schema_grounding_node)
