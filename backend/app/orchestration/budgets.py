@@ -12,20 +12,29 @@ class WorkflowBudgetTracker:
         self,
         settings: Settings,
         max_total_timeout_seconds: float | None = None,
-        max_llm_calls: int = 5,
-        max_corrections: int = 2,
-        max_steps: int = 15,
+        max_llm_calls: int = 4,
+        max_corrections: int = 1,
+        max_steps: int = 20,
     ) -> None:
         self.settings = settings
-        # Overall deadline defaults to slightly higher than single query execution
+        # Overall deadline defaults to configured request timeout (default 120s)
         self.max_timeout_seconds = (
             max_total_timeout_seconds
             if max_total_timeout_seconds is not None
-            else min(settings.llm_request_timeout_seconds * 1.5, 180.0)
+            else settings.llm_request_timeout_seconds
         )
-        self.max_llm_calls = max_llm_calls
-        self.max_corrections = min(max_corrections, settings.analysis_max_correction_attempts + 1)
-        self.max_steps = max_steps
+        self.max_llm_calls = min(
+            max_llm_calls,
+            getattr(settings, "analysis_max_llm_calls_per_workflow", 4),
+        )
+        self.max_corrections = min(
+            max_corrections,
+            settings.analysis_max_correction_attempts,
+        )
+        self.max_steps = min(
+            max_steps,
+            getattr(settings, "analysis_max_graph_transitions", 20),
+        )
 
         self.start_time = time.monotonic()
         self.llm_call_count = 0

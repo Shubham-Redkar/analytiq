@@ -4,6 +4,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.analysis.admission import AnalyticalOverloadError
 from app.analysis.service import AnalysisService
 from app.api.deps import CurrentUser, DatabaseSession
 from app.core.config import Settings, get_settings
@@ -108,10 +109,17 @@ async def execute_dataset_query(
             detail=f"Dataset is in '{dataset.status}' state and not ready for analytical queries.",
         )
 
-    result = await analysis_service.run_analysis(
-        dataset=dataset,
-        question=payload.question,
-    )
+    try:
+        result = await analysis_service.run_analysis(
+            dataset=dataset,
+            question=payload.question,
+        )
+    except AnalyticalOverloadError as oe:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=oe.message,
+            headers={"Retry-After": str(oe.retry_after)},
+        ) from oe
 
     return AnalysisQueryResponse.model_validate(result)
 
@@ -155,10 +163,17 @@ async def execute_dataset_workflow_analysis(
             detail=f"Dataset is in '{dataset.status}' state and not ready for analytical queries.",
         )
 
-    result = await orchestration_service.execute_workflow(
-        dataset=dataset,
-        question=payload.question,
-        user_id=current_user.id,
-    )
+    try:
+        result = await orchestration_service.execute_workflow(
+            dataset=dataset,
+            question=payload.question,
+            user_id=current_user.id,
+        )
+    except AnalyticalOverloadError as oe:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=oe.message,
+            headers={"Retry-After": str(oe.retry_after)},
+        ) from oe
 
     return WorkflowAnalysisResponse.model_validate(result)

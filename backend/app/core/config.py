@@ -169,7 +169,7 @@ class Settings(BaseSettings):
     )
 
     # ------------------------------------------------------------------
-    # Analytical Engine & Query Security (M3)
+    # Analytical Engine & Query Security (M3/M4)
     # ------------------------------------------------------------------
     analysis_max_question_length: int = Field(
         default=2000,
@@ -184,10 +184,28 @@ class Settings(BaseSettings):
         description="Maximum bounded correction attempts for syntax/schema errors.",
     )
     analysis_max_concurrent_requests: int = Field(
-        default=2,
+        default=1,
         ge=1,
         le=16,
         description="Maximum concurrent analytical queries executed per application worker.",
+    )
+    analysis_max_pending_requests: int = Field(
+        default=2,
+        ge=0,
+        le=32,
+        description="Maximum queued pending analytical requests before rejecting with 429.",
+    )
+    analysis_max_llm_calls_per_workflow: int = Field(
+        default=4,
+        ge=1,
+        le=10,
+        description="Maximum logical LLM calls per analytical workflow execution.",
+    )
+    analysis_max_graph_transitions: int = Field(
+        default=20,
+        ge=5,
+        le=50,
+        description="Maximum state transitions in multi-agent LangGraph workflow.",
     )
     analysis_query_timeout_seconds: float = Field(
         default=15.0,

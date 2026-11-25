@@ -5,6 +5,9 @@ import logging
 import time
 import uuid
 
+from app.analysis.admission import (
+    get_shared_admission_controller,
+)
 from app.analysis.context_builder import build_dataset_context
 from app.analysis.planner import AnalyticalPlanner
 from app.analysis.query_executor import RestrictedQueryExecutor
@@ -74,9 +77,10 @@ class OrchestrationService:
             timeout_seconds=self.settings.llm_request_timeout_seconds,
         )
 
-        # Global concurrency semaphore per process
-        self._concurrency_semaphore = asyncio.Semaphore(
-            self.settings.analysis_max_concurrent_requests
+        # Shared in-process admission controller
+        self.admission = get_shared_admission_controller(
+            max_concurrent=self.settings.analysis_max_concurrent_requests,
+            max_pending=self.settings.analysis_max_pending_requests,
         )
 
     async def execute_workflow(
@@ -87,12 +91,15 @@ class OrchestrationService:
         request_id: str | None = None,
     ) -> OrchestrationResult:
         """Run the end-to-end multi-agent LangGraph workflow."""
-        async with self._concurrency_semaphore:
+        async with self.admission.acquire_ticket(
+            timeout_seconds=self.settings.llm_request_timeout_seconds
+        ) as remaining_timeout:
             return await self._execute_workflow_internal(
                 dataset=dataset,
                 question=question,
                 user_id=user_id,
                 request_id=request_id,
+                remaining_timeout=remaining_timeout,
             )
 
     async def _execute_workflow_internal(
@@ -101,17 +108,20 @@ class OrchestrationService:
         question: str,
         user_id: uuid.UUID,
         request_id: str | None = None,
+        remaining_timeout: float | None = None,
     ) -> OrchestrationResult:
-        """Internal workflow execution within semaphore."""
+        """Internal workflow execution within admission ticket."""
         req_id = request_id or str(uuid.uuid4())
         start_time = time.monotonic()
+        total_deadline = remaining_timeout or self.settings.llm_request_timeout_seconds
 
         # 1. Initialize budget tracker and event tracer
         budget = WorkflowBudgetTracker(
             settings=self.settings,
-            max_total_timeout_seconds=self.settings.llm_request_timeout_seconds * 1.5,
-            max_llm_calls=5,
-            max_corrections=self.settings.analysis_max_correction_attempts + 1,
+            max_total_timeout_seconds=total_deadline,
+            max_llm_calls=self.settings.analysis_max_llm_calls_per_workflow,
+            max_corrections=self.settings.analysis_max_correction_attempts,
+            max_steps=self.settings.analysis_max_graph_transitions,
         )
         tracer = WorkflowTracer(max_events=50)
 

@@ -1,11 +1,13 @@
 """Comprehensive end-to-end analytical query service for AnalytIQ."""
 
-import asyncio
 import logging
 import time
 import uuid
 from typing import Any
 
+from app.analysis.admission import (
+    get_shared_admission_controller,
+)
 from app.analysis.context_builder import build_dataset_context
 from app.analysis.contracts import (
     AnalyticalQueryResult,
@@ -65,9 +67,10 @@ class AnalysisService:
             max_result_bytes=self.settings.analysis_max_result_bytes,
         )
 
-        # Global concurrency semaphore per process
-        self._concurrency_semaphore = asyncio.Semaphore(
-            self.settings.analysis_max_concurrent_requests
+        # Shared in-process admission controller
+        self.admission = get_shared_admission_controller(
+            max_concurrent=self.settings.analysis_max_concurrent_requests,
+            max_pending=self.settings.analysis_max_pending_requests,
         )
 
     async def run_analysis(
@@ -80,8 +83,10 @@ class AnalysisService:
         request_id = str(uuid.uuid4())
         trimmed_question = question.strip()
 
-        # Enforce concurrency boundary
-        async with self._concurrency_semaphore:
+        # Enforce bounded admission and queue limits
+        async with self.admission.acquire_ticket(
+            timeout_seconds=self.settings.llm_request_timeout_seconds
+        ):
             # 1. Dataset Lifecycle & Readiness Check
             if dataset.status != "ready":
                 return AnalyticalQueryResult(
