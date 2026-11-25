@@ -98,9 +98,9 @@ class TestResourceContainmentAndBudgets:
 
     @pytest.mark.asyncio
     async def test_concurrency_semaphore_releases_on_exception(self) -> None:
-        """If execution crashes or gets cancelled, semaphore slot is released."""
+        """If execution crashes or gets cancelled, admission ticket is released."""
         service = OrchestrationService(llm_provider=AsyncMock())
-        initial_value = service._concurrency_semaphore._value
+        initial_active = service.admission.active_count
 
         # Simulate task cancellation or error
         user_uuid = uuid.uuid4()
@@ -114,5 +114,5 @@ class TestResourceContainmentAndBudgets:
                     user_id=user_uuid,
                 )
 
-        # Semaphore count must be fully restored
-        assert service._concurrency_semaphore._value == initial_value
+        # Admission ticket must be fully restored
+        assert service.admission.active_count == initial_active

@@ -118,6 +118,8 @@ class TestContextAndGrounding:
             settings=AsyncMock(
                 llm_request_timeout_seconds=30.0,
                 analysis_max_correction_attempts=2,
+                analysis_max_llm_calls_per_workflow=4,
+                analysis_max_graph_transitions=20,
             ),
             max_llm_calls=3,
         )
