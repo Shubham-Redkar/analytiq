@@ -188,6 +188,7 @@ async def run_benchmark(
             "unsupported",
             "prohibited_statement",
             "unauthorized_relation",
+            "query_rejected",
         ):
             # Safe refusal check
             passed = res.status in (

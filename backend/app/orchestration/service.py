@@ -74,6 +74,11 @@ class OrchestrationService:
             timeout_seconds=self.settings.llm_request_timeout_seconds,
         )
 
+        # Global concurrency semaphore per process
+        self._concurrency_semaphore = asyncio.Semaphore(
+            self.settings.analysis_max_concurrent_requests
+        )
+
     async def execute_workflow(
         self,
         dataset: Dataset,
@@ -82,6 +87,22 @@ class OrchestrationService:
         request_id: str | None = None,
     ) -> OrchestrationResult:
         """Run the end-to-end multi-agent LangGraph workflow."""
+        async with self._concurrency_semaphore:
+            return await self._execute_workflow_internal(
+                dataset=dataset,
+                question=question,
+                user_id=user_id,
+                request_id=request_id,
+            )
+
+    async def _execute_workflow_internal(
+        self,
+        dataset: Dataset,
+        question: str,
+        user_id: uuid.UUID,
+        request_id: str | None = None,
+    ) -> OrchestrationResult:
+        """Internal workflow execution within semaphore."""
         req_id = request_id or str(uuid.uuid4())
         start_time = time.monotonic()
 

@@ -71,24 +71,30 @@ def ground_question_in_schema(
     ]
 
     # 1. Check for bare average / aggregate without specified target column
-    for pat in BARE_AVERAGE_PATTERNS:
-        if re.search(pat, clean_q):
-            num_cols_msg = ", ".join(numeric_cols)
-            return GroundingAnalysis(
-                is_grounded=False,
-                ambiguity_detected=True,
-                ambiguity_type=ClarificationType.MISSING_TARGET_METRIC.value,
-                ambiguity_reason=(
-                    "The query asks for an average/mean without specifying a numeric metric."
-                ),
-                referenced_columns=[],
-                missing_columns=[],
-                candidate_metrics=numeric_cols,
-                candidate_dimensions=categorical_cols,
-                suggested_clarification=(
-                    f"Please specify which metric to average. Available columns: {num_cols_msg}."
-                ),
-            )
+    has_avg_request = any(re.search(pat, clean_q) for pat in BARE_AVERAGE_PATTERNS) or (
+        bool(re.search(r"\b(average|mean|avg)\b", clean_q))
+        and not any(
+            col.lower() in clean_q or col.lower().replace("_", " ") in clean_q
+            for col in numeric_cols
+        )
+    )
+    if has_avg_request:
+        num_cols_msg = ", ".join(numeric_cols)
+        return GroundingAnalysis(
+            is_grounded=False,
+            ambiguity_detected=True,
+            ambiguity_type=ClarificationType.MISSING_TARGET_METRIC.value,
+            ambiguity_reason=(
+                "The query asks for an average/mean without specifying a numeric metric."
+            ),
+            referenced_columns=[],
+            missing_columns=[],
+            candidate_metrics=numeric_cols,
+            candidate_dimensions=categorical_cols,
+            suggested_clarification=(
+                f"Please specify which metric to average. Available columns: {num_cols_msg}."
+            ),
+        )
 
     # 2. Check for subjective ranking / superlatives without metric criteria
     for pat in SUBJECTIVE_PATTERNS:

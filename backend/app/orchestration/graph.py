@@ -3,7 +3,7 @@
 import logging
 import time
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from langgraph.graph import END, StateGraph
 
@@ -518,9 +518,12 @@ def build_analytical_workflow_graph(
     # StateGraph Construction
     # -------------------------------------------------------------
 
-    # Note: cast to Any resolves IDE language server (Pyrefly/Pylance) strict
-    # protocol bound check against LangGraph's internal StateLike union.
-    workflow = StateGraph(cast(Any, WorkflowState))
+    # LangGraph's StateGraph binds StateT to
+    # TypedDictLikeV1 | TypedDictLikeV2 | DataclassLike | BaseModel.
+    # Pyrefly suffers from a known subtyping bug where TypedDict undergoes
+    # premature erasure to dict[str, Any], causing false-positive bad-specialization.
+    # We suppress Pyrefly specifically while preserving full type safety for Pyright.
+    workflow = StateGraph(WorkflowState)  # pyrefly: ignore[bad-specialization]
 
     workflow.add_node(WorkflowNodeName.SUPERVISOR.value, supervisor_node)
     workflow.add_node(WorkflowNodeName.SCHEMA_GROUNDING.value, schema_grounding_node)
