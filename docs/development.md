@@ -459,6 +459,15 @@ If `docker: command not found` or `Cannot connect to the Docker daemon`:
 - Backend: Do not manually edit `uv.lock`. Run `uv lock` followed by `uv sync --locked`.
 - Frontend: Do not manually edit `package-lock.json`. Run `npm install` followed by `npm ci` to verify.
 
+### Pyrefly Language Server `bad-specialization` Diagnostic
+When developing in IDEs equipped with Meta's Pyrefly language server, a false-positive diagnostic (`bad-specialization`) may appear on `StateGraph(WorkflowState)`:
+```
+`WorkflowState` is not assignable to upper bound `BaseModel | DataclassLike | TypedDictLikeV1 | TypedDictLikeV2` of type variable `StateT` Pyrefly(bad-specialization)
+```
+- **Upstream Root Cause**: Pyrefly's structural subtyping engine undergoes premature type erasure on `typing.TypedDict` down to `dict[str, Any]` before evaluating protocol bounds (`__required_keys__`, `__optional_keys__`).
+- **Standard Type Checkers**: Pyright (used in CI/`make check`) and Mypy evaluate this construct cleanly with 0 errors.
+- **Resolution**: Suppressed inline specifically for Pyrefly via `# pyrefly: ignore[bad-specialization]` in `backend/app/orchestration/graph.py` to maintain strict Pyright type checking without IDE distraction.
+
 ---
 
 ## 12. Safe Shutdown
