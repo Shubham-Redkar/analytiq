@@ -333,6 +333,14 @@ export function DatasetDetailContent({ id }: { id: string }) {
           </div>
 
           <div className="flex items-center gap-3">
+            {dataset.status === "ready" && (
+              <Link
+                href={`/analysis?dataset_id=${dataset.id}`}
+                className="inline-flex items-center justify-center rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition shadow-xs"
+              >
+                Analyze Dataset
+              </Link>
+            )}
             <Button
               variant="outline"
               size="sm"

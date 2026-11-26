@@ -173,4 +173,65 @@ export const api = {
       }
     );
   },
+
+  // Analysis Sessions & Workflow APIs (M6)
+  async listAnalysisSessions(
+    datasetId?: string,
+    page = 1,
+    pageSize = 20
+  ): Promise<import("./analysis-types").AnalysisSessionListResponse> {
+    const qs = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+    if (datasetId) qs.set("dataset_id", datasetId);
+    return request(`/api/v1/sessions?${qs.toString()}`, { method: "GET" });
+  },
+
+  async createAnalysisSession(
+    datasetId: string,
+    title?: string
+  ): Promise<import("./analysis-types").AnalysisSessionResponse> {
+    return request("/api/v1/sessions", {
+      method: "POST",
+      body: JSON.stringify({ dataset_id: datasetId, title }),
+    });
+  },
+
+  async getAnalysisSession(
+    sessionId: string
+  ): Promise<import("./analysis-types").AnalysisSessionResponse> {
+    return request(`/api/v1/sessions/${sessionId}`, { method: "GET" });
+  },
+
+  async updateAnalysisSession(
+    sessionId: string,
+    title: string
+  ): Promise<import("./analysis-types").AnalysisSessionResponse> {
+    return request(`/api/v1/sessions/${sessionId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ title }),
+    });
+  },
+
+  async deleteAnalysisSession(sessionId: string): Promise<void> {
+    return request(`/api/v1/sessions/${sessionId}`, { method: "DELETE" });
+  },
+
+  async executeAnalysis(
+    datasetId: string,
+    question: string,
+    sessionId?: string
+  ): Promise<import("./analysis-types").WorkflowAnalysisResponse> {
+    return request(`/api/v1/datasets/${datasetId}/analysis`, {
+      method: "POST",
+      body: JSON.stringify({ question, session_id: sessionId }),
+    });
+  },
+
+  async cancelAnalysis(
+    datasetId: string,
+    requestId: string
+  ): Promise<{ request_id: string; status: string; message: string }> {
+    return request(`/api/v1/datasets/${datasetId}/analysis/${requestId}/cancel`, {
+      method: "POST",
+    });
+  },
 };

@@ -37,6 +37,12 @@ export function Navbar() {
               >
                 Datasets
               </Link>
+              <Link
+                href="/analysis"
+                className="text-muted-foreground transition-colors hover:text-foreground font-medium"
+              >
+                Analysis
+              </Link>
             </nav>
           )}
         </div>
