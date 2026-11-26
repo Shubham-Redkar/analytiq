@@ -331,6 +331,62 @@ class TestOrchestrationAPIEndpoints:
             app.dependency_overrides.pop(get_llm_provider, None)
 
     @pytest.mark.asyncio
+    async def test_authenticated_workflow_analysis_endpoint_completed_with_verification(
+        self,
+        client: httpx.AsyncClient,
+    ) -> None:
+        await register_and_login(client, "verified_user@example.com", "Verified User")
+
+        mock_plan = {
+            "status": "ready",
+            "intent": "Calculate total amount",
+            "operation": "aggregation",
+            "referenced_columns": ["amount"],
+            "sql": 'SELECT SUM("amount") AS total_amount FROM dataset',
+            "assumptions": [],
+        }
+        mock_interpretation = {
+            "summary": "Total amount is 300.",
+            "key_takeaways": ["Amounts sum to 300."],
+            "structured_claims": [
+                {
+                    "claim_type": "scalar_value",
+                    "metric_name": "total_amount",
+                    "claimed_value": 300.0,
+                    "evidence_references": [{"row_index": 0, "column_name": "total_amount"}],
+                }
+            ],
+        }
+        mock_provider = MockLLMProvider(canned_responses=[mock_plan, mock_interpretation])
+        app.dependency_overrides[get_llm_provider] = lambda: mock_provider
+
+        try:
+            csv_content = b"order_id,amount\n1,100\n2,200\n"
+            upload_resp = await client.post(
+                "/api/v1/datasets",
+                files={"file": ("orders.csv", io.BytesIO(csv_content), "text/csv")},
+                data={"name": "Orders"},
+            )
+            assert upload_resp.status_code == 201
+            dataset_id = upload_resp.json()["id"]
+
+            resp = await client.post(
+                f"/api/v1/datasets/{dataset_id}/analysis",
+                json={"question": "What is the total amount?"},
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["status"] == "completed"
+            assert data["interpretation"] is not None
+            assert data["verification"] is not None
+            assert data["verification"]["status"] == "verified"
+            assert data["verification"]["total_claims"] == 1
+            assert data["verification"]["verified_claims_count"] == 1
+            assert data["verification"]["intent_consistency"]["status"] == "consistent"
+        finally:
+            app.dependency_overrides.pop(get_llm_provider, None)
+
+    @pytest.mark.asyncio
     async def test_legacy_endpoint_backward_compatibility(
         self,
         client: httpx.AsyncClient,

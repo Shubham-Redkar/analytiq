@@ -164,6 +164,7 @@ async def run_benchmark(
         )
         t0 = time.perf_counter()
 
+        orch_res = None
         if mode == "orchestration" and orch_service is not None:
             orch_res = await orch_service.execute_workflow(dataset, case.question, dataset.owner_id)
             res = orch_res.to_legacy_query_result()
@@ -219,6 +220,21 @@ async def run_benchmark(
         )
         print(line_out)
 
+        verification_data = None
+        if orch_res and orch_res.verification:
+            v = orch_res.verification
+            verification_data = {
+                "status": v.status.value,
+                "intent_aligned": v.intent_consistency.status == "consistent",
+                "total_claims": v.total_claims,
+                "verified_claims": v.verified_claims_count,
+                "contradicted_claims": v.contradicted_claims_count,
+                "insufficient_evidence_claims": v.insufficient_evidence_count,
+                "unsupported_claims": v.unsupported_claims_count,
+                "invalid_references_count": v.invalid_references_count,
+                "verification_duration_ms": v.verification_duration_ms,
+            }
+
         record = {
             "case_id": case.id,
             "suite": suite_name,
@@ -235,6 +251,7 @@ async def run_benchmark(
             "executed_sql": res.executed_sql,
             "rows_returned": res.returned_row_count,
             "error_message": res.error_message or res.unsupported_reason,
+            "verification": verification_data,
         }
         case_records.append(record)
 
@@ -263,6 +280,12 @@ async def run_benchmark(
         if r["passed"]:
             macro_breakdown[mc]["passed"] += 1
 
+    v_cases = [r["verification"] for r in case_records if r.get("verification")]
+    total_claims = sum(v["total_claims"] for v in v_cases)
+    total_verified = sum(v["verified_claims"] for v in v_cases)
+    total_contradicted = sum(v["contradicted_claims"] for v in v_cases)
+    claim_verification_rate = (total_verified / total_claims * 100.0) if total_claims > 0 else 100.0
+
     summary = {
         "timestamp": datetime.now(UTC).isoformat(),
         "benchmark_version": BENCHMARK_VERSION,
@@ -277,6 +300,12 @@ async def run_benchmark(
         "p50_latency_ms": round(p50_lat * 1000, 2),
         "p95_latency_ms": round(p95_lat * 1000, 2),
         "macro_category_breakdown": macro_breakdown,
+        "verification_metrics": {
+            "total_claims_evaluated": total_claims,
+            "total_verified_claims": total_verified,
+            "total_contradicted_claims": total_contradicted,
+            "claim_verification_rate_pct": round(claim_verification_rate, 2),
+        },
         "cases": case_records,
     }
 

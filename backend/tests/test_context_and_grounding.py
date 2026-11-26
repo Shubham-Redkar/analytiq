@@ -123,7 +123,7 @@ class TestContextAndGrounding:
             ),
             max_llm_calls=3,
         )
-        res = await interpreter.interpret(
+        interpretation, _claims = await interpreter.interpret(
             question="What is total revenue by region?",
             columns=columns,
             rows=rows,
@@ -131,7 +131,7 @@ class TestContextAndGrounding:
             budget=budget,
         )
 
-        assert res.summary is not None
+        assert interpretation.summary is not None
         # Either summary or key_findings must contain deterministic numbers
-        all_text = res.summary + " " + " ".join(res.key_findings)
+        all_text = interpretation.summary + " " + " ".join(interpretation.key_findings)
         assert "450000" in all_text and "North" in all_text
