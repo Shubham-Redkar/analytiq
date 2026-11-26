@@ -12,6 +12,7 @@ from app.analysis.contracts import (
     AnalyticalResultColumn,
     ExecutionEvidence,
 )
+from app.verification.contracts import VerificationSummary
 
 
 class WorkflowNodeName(StrEnum):
@@ -24,6 +25,7 @@ class WorkflowNodeName(StrEnum):
     VALIDATOR = "validator"
     EXECUTOR = "executor"
     INTERPRETER = "interpreter"
+    VERIFIER = "verifier"
     REFUSAL = "refusal"
 
 
@@ -122,6 +124,7 @@ class OrchestrationResult(BaseModel):
     unsupported_reason: str | None = None
     error_message: str | None = None
     evidence: ExecutionEvidence | None = None
+    verification: VerificationSummary | None = None
     trace_events: list[TraceEvent] = Field(default_factory=list)
     total_llm_calls: int = 0
     correction_attempts: int = 0

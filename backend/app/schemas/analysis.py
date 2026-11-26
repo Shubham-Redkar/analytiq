@@ -12,6 +12,7 @@ from app.orchestration.contracts import (
     InterpretationOutput,
     TraceEvent,
 )
+from app.verification.contracts import VerificationSummary
 
 
 class AnalysisQueryRequest(BaseModel):
@@ -56,10 +57,11 @@ class AnalysisQueryResponse(BaseModel):
     unsupported_reason: str | None = None
     error_message: str | None = None
     evidence: ExecutionEvidence | None = None
+    verification: VerificationSummary | None = None
 
 
 class WorkflowAnalysisResponse(BaseModel):
-    """Rich multi-agent orchestration response (M4 contract)."""
+    """Rich multi-agent orchestration response (M4/M5 contract)."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -80,6 +82,7 @@ class WorkflowAnalysisResponse(BaseModel):
     unsupported_reason: str | None = None
     error_message: str | None = None
     evidence: ExecutionEvidence | None = None
+    verification: VerificationSummary | None = None
     trace_events: list[TraceEvent] = Field(default_factory=list)
     total_llm_calls: int = 0
     correction_attempts: int = 0

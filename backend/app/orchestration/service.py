@@ -28,6 +28,7 @@ from app.orchestration.graph import build_analytical_workflow_graph
 from app.orchestration.state import WorkflowState
 from app.orchestration.tracing import WorkflowTracer
 from app.services.storage import StorageService, storage_service
+from app.verification.service import EvidenceVerificationService
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,7 @@ class OrchestrationService:
             temperature=self.settings.llm_temperature,
             timeout_seconds=self.settings.llm_request_timeout_seconds,
         )
+        self.verifier = EvidenceVerificationService()
 
         # Shared in-process admission controller
         self.admission = get_shared_admission_controller(
@@ -143,6 +145,7 @@ class OrchestrationService:
             validator=self.validator,
             executor=self.executor,
             interpreter=self.interpreter,
+            verifier=self.verifier,
             tracer=tracer,
             budget=budget,
         )
@@ -236,6 +239,7 @@ class OrchestrationService:
             unsupported_reason=final_state.get("unsupported_reason"),
             error_message=final_state.get("error_message"),
             evidence=final_state.get("evidence"),
+            verification=final_state.get("verification"),
             trace_events=final_state.get("trace_events", tracer.get_events()),
             total_llm_calls=budget.llm_call_count,
             correction_attempts=budget.correction_count,

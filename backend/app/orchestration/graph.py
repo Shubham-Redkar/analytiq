@@ -36,6 +36,7 @@ from app.orchestration.contracts import (
 from app.orchestration.grounding import ground_question_in_schema
 from app.orchestration.state import WorkflowState
 from app.orchestration.tracing import WorkflowTracer
+from app.verification.service import EvidenceVerificationService
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,7 @@ def build_analytical_workflow_graph(
     validator: SQLSecurityValidator,
     executor: RestrictedQueryExecutor,
     interpreter: ResultInterpreterAgent,
+    verifier: EvidenceVerificationService,
     tracer: WorkflowTracer,
     budget: WorkflowBudgetTracker,
 ) -> Any:
@@ -413,7 +415,7 @@ def build_analytical_workflow_graph(
         rows = state.get("query_rows", [])
         evidence = state.get("evidence")
 
-        interpretation = await interpreter.interpret(
+        interpretation, claims = await interpreter.interpret(
             question=question,
             columns=columns,
             rows=rows,
@@ -429,11 +431,66 @@ def build_analytical_workflow_graph(
             details={
                 "is_fallback": interpretation.is_fallback,
                 "findings_count": len(interpretation.key_findings),
+                "claims_count": len(claims),
             },
         )
 
         return {
             "interpretation": interpretation,
+            "structured_claims": claims,
+            "step_count": state.get("step_count", 0) + 1,
+            "trace_events": tracer.get_events(),
+        }
+
+    async def verifier_node(state: WorkflowState) -> dict[str, Any]:
+        t0 = time.monotonic()
+        budget.increment_step()
+        question = state["question"]
+        plan = state.get("plan")
+        executed_sql = state.get("validated_sql")
+        columns = state.get("query_columns", [])
+        rows = state.get("query_rows", [])
+        evidence = state.get("evidence")
+        claims = state.get("structured_claims", [])
+        interpretation = state.get("interpretation")
+
+        if evidence is None:
+            logger.warning("Verifier: No execution evidence present in state.")
+            return {
+                "step_count": state.get("step_count", 0) + 1,
+                "trace_events": tracer.get_events(),
+            }
+
+        verification_summary = verifier.verify_analysis(
+            question=question,
+            plan=plan,
+            executed_sql=executed_sql,
+            evidence=evidence,
+            columns=columns,
+            rows=rows,
+            claims=claims,
+        )
+
+        # Update interpretation summary with deterministic verified prose if available
+        if interpretation and verification_summary.verified_explanation:
+            interpretation.summary = verification_summary.verified_explanation
+
+        duration_ms = (time.monotonic() - t0) * 1000
+
+        tracer.record(
+            node=WorkflowNodeName.VERIFIER,
+            action="verify_claims_and_evidence",
+            duration_ms=duration_ms,
+            details={
+                "status": verification_summary.status.value,
+                "verified_claims_count": verification_summary.verified_claims_count,
+                "rejected_claims_count": len(verification_summary.rejected_claims),
+            },
+        )
+
+        return {
+            "interpretation": interpretation,
+            "verification": verification_summary,
             "step_count": state.get("step_count", 0) + 1,
             "trace_events": tracer.get_events(),
         }
@@ -524,7 +581,7 @@ def build_analytical_workflow_graph(
     # before Protocol structural validation, falsely triggering bad-specialization.
     # We suppress only this specific diagnostic rule on this line while preserving
     # full structural type safety for Pyright, Mypy, and runtime LangGraph.
-    workflow = StateGraph(WorkflowState)  # type: ignore[bad-specialization]
+    workflow = StateGraph(WorkflowState)  # pyrefly: ignore[bad-specialization]
 
     workflow.add_node(WorkflowNodeName.SUPERVISOR.value, supervisor_node)
     workflow.add_node(WorkflowNodeName.SCHEMA_GROUNDING.value, schema_grounding_node)
@@ -533,6 +590,7 @@ def build_analytical_workflow_graph(
     workflow.add_node(WorkflowNodeName.VALIDATOR.value, validator_node)
     workflow.add_node(WorkflowNodeName.EXECUTOR.value, executor_node)
     workflow.add_node(WorkflowNodeName.INTERPRETER.value, interpreter_node)
+    workflow.add_node(WorkflowNodeName.VERIFIER.value, verifier_node)
     workflow.add_node(WorkflowNodeName.REFUSAL.value, refusal_node)
 
     workflow.set_entry_point(WorkflowNodeName.SUPERVISOR.value)
@@ -588,7 +646,8 @@ def build_analytical_workflow_graph(
         },
     )
 
-    workflow.add_edge(WorkflowNodeName.INTERPRETER.value, END)
+    workflow.add_edge(WorkflowNodeName.INTERPRETER.value, WorkflowNodeName.VERIFIER.value)
+    workflow.add_edge(WorkflowNodeName.VERIFIER.value, END)
     workflow.add_edge(WorkflowNodeName.REFUSAL.value, END)
 
     return workflow.compile()

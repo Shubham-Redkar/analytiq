@@ -16,6 +16,7 @@ from app.orchestration.contracts import (
     OrchestrationStatus,
     TraceEvent,
 )
+from app.verification.contracts import AnalyticalClaim, VerificationSummary
 
 
 class GroundingAnalysis(TypedDict, total=True):
@@ -76,6 +77,8 @@ class WorkflowState(TypedDict):
     truncated: NotRequired[bool]
     evidence: NotRequired[ExecutionEvidence | None]
 
-    # 5. Interpretation & Tracing
+    # 5. Interpretation, Verification & Tracing
     interpretation: NotRequired[InterpretationOutput | None]
+    structured_claims: NotRequired[list[AnalyticalClaim]]
+    verification: NotRequired[VerificationSummary | None]
     trace_events: NotRequired[list[TraceEvent]]
