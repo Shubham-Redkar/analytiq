@@ -14,6 +14,15 @@ import { WorkflowProgress } from "./workflow-progress";
 import { AnalysisHistorySidebar } from "./analysis-history-sidebar";
 import { generateSuggestedQuestions } from "../../lib/suggested-questions";
 import { Database, PanelLeftClose, PanelLeftOpen, AlertCircle } from "lucide-react";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectPortal,
+  SelectPositioner,
+  SelectPopup,
+  SelectItem,
+} from "../ui/select";
 
 interface AnalysisWorkspaceProps {
   initialDatasets: Dataset[];
@@ -262,40 +271,63 @@ export function AnalysisWorkspace({
       {/* Main Workspace */}
       <main className="flex-1 flex flex-col h-full min-h-0 overflow-hidden">
         {/* Workspace Top Header */}
-        <header className="border-b px-6 py-3 flex items-center justify-between bg-card/40 shrink-0">
+        <header className="border-b px-6 py-3 flex items-center justify-between bg-card/50 shrink-0">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowHistory(!showHistory)}
-              className="p-1.5 rounded-lg border hover:bg-muted text-muted-foreground transition hidden md:flex items-center cursor-pointer"
+              className="p-2 rounded-lg border hover:bg-muted text-muted-foreground transition hidden md:flex items-center cursor-pointer"
               title={showHistory ? "Collapse history" : "Expand history"}
             >
               {showHistory ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
             </button>
 
             <div className="flex items-center gap-2">
-              <Database className="h-4 w-4 text-primary" />
-              <select
+              <Select
                 value={activeDatasetId}
-                onChange={(e) => {
-                  setActiveDatasetId(e.target.value);
-                  handleNewSession();
+                onValueChange={(val: string | null) => {
+                  if (val && val !== activeDatasetId) {
+                    setActiveDatasetId(val);
+                    handleNewSession();
+                  }
                 }}
-                className="font-semibold text-sm bg-transparent border-0 focus:ring-0 text-foreground cursor-pointer pr-2"
               >
-                {datasets.map((d) => (
-                  <option key={d.id} value={d.id} disabled={d.status !== "ready"}>
-                    {d.name} {d.status !== "ready" ? `(${d.status})` : ""}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="h-9 min-w-[220px] max-w-[320px] gap-2.5 font-medium text-sm">
+                  <Database className="h-4 w-4 text-primary shrink-0" />
+                  <SelectValue placeholder="Select dataset...">
+                    {activeDataset?.name || "Select dataset..."}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectPortal>
+                  <SelectPositioner>
+                    <SelectPopup className="min-w-[280px]">
+                      {datasets.map((d) => (
+                        <SelectItem
+                          key={d.id}
+                          value={d.id}
+                          disabled={d.status !== "ready"}
+                        >
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium text-sm text-foreground">{d.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {d.status === "ready"
+                                ? `${d.row_count?.toLocaleString() ?? 0} rows · ${d.column_count ?? 0} columns`
+                                : `Status: ${d.status}`}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectPopup>
+                  </SelectPositioner>
+                </SelectPortal>
+              </Select>
             </div>
           </div>
 
           {activeDataset && (
-            <div className="text-xs text-muted-foreground flex items-center gap-3">
+            <div className="text-[13px] text-muted-foreground flex items-center gap-3">
               <span>{activeDataset.row_count?.toLocaleString() ?? 0} rows</span>
               <span>·</span>
-              <span>{activeDataset.column_count ?? 0} cols</span>
+              <span>{activeDataset.column_count ?? 0} columns</span>
             </div>
           )}
         </header>
@@ -318,33 +350,33 @@ export function AnalysisWorkspace({
           )}
 
           {responses.length === 0 && !isRunning && (
-            <div className="max-w-2xl mx-auto my-8 text-center space-y-4">
-              <div className="h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-2">
-                <Database className="h-6 w-6" />
+            <div className="max-w-2xl mx-auto my-auto py-8 text-center space-y-5">
+              <div className="h-14 w-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-2 shadow-2xs">
+                <Database className="h-7 w-7" />
               </div>
-              <h2 className="text-xl font-semibold tracking-tight text-foreground">
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground">
                 What would you like to explore?
               </h2>
-              <p className="text-sm text-muted-foreground leading-relaxed max-w-lg mx-auto">
+              <p className="text-[15px] text-muted-foreground leading-relaxed max-w-lg mx-auto">
                 {activeDataset
-                  ? `Ask analytical questions about ${activeDataset.name}. AnalytIQ formulates verified DuckDB queries, validates analytical claims, and cross-checks results against deterministic execution evidence.`
-                  : "Select an uploaded dataset to begin analytical reasoning, claim verification, and data exploration."}
+                  ? `Ask questions about ${activeDataset.name}, explore your data, and discover insights backed by evidence.`
+                  : "Select an uploaded dataset to begin exploring insights backed by deterministic evidence."}
               </p>
 
               {suggestedQuestions.length > 0 && (
-                <div className="pt-4 text-left">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                    Suggested inquiries for this dataset
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="pt-3 text-left">
+                  <h3 className="text-sm font-medium text-foreground/80 mb-3">
+                    Suggested questions
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {suggestedQuestions.map((q, idx) => (
                       <button
                         key={idx}
                         onClick={() => handleSubmitQuestion(q)}
-                        className="text-left text-xs p-3 rounded-xl border border-border bg-card hover:bg-muted/50 hover:border-primary/40 transition-all text-card-foreground shadow-2xs group flex items-start justify-between gap-2 cursor-pointer"
+                        className="text-left text-sm p-3.5 min-h-[52px] rounded-xl border border-border bg-card hover:bg-muted/50 hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-ring transition-all text-card-foreground shadow-2xs group flex items-start justify-between gap-2.5 cursor-pointer"
                       >
-                        <span className="line-clamp-2 leading-relaxed">{q}</span>
-                        <span className="text-primary opacity-0 group-hover:opacity-100 transition-opacity text-sm shrink-0">&rarr;</span>
+                        <span className="line-clamp-2 leading-relaxed font-normal">{q}</span>
+                        <span className="text-primary opacity-0 group-hover:opacity-100 transition-opacity text-base shrink-0 mt-0.5">&rarr;</span>
                       </button>
                     ))}
                   </div>

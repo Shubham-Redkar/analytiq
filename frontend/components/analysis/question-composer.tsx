@@ -49,12 +49,12 @@ export function QuestionComposer({
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {suggestedQuestions.length > 0 && !isRunning && (
         <div className="space-y-1.5">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
-            <Sparkles className="h-3 w-3 text-primary" />
-            <span>Suggested analytical queries:</span>
+            <Sparkles className="h-3.5 w-3.5 text-primary" />
+            <span>Suggested questions:</span>
           </div>
           <div className="flex flex-wrap gap-1.5">
             {suggestedQuestions.map((q, idx) => (
@@ -65,7 +65,7 @@ export function QuestionComposer({
                   textareaRef.current?.focus();
                 }}
                 disabled={disabled}
-                className="text-xs px-2.5 py-1 rounded-full border bg-muted/40 hover:bg-muted text-foreground/80 hover:text-foreground transition disabled:opacity-50"
+                className="text-xs px-3 py-1 rounded-full border bg-muted/40 hover:bg-muted text-foreground/80 hover:text-foreground transition disabled:opacity-50 cursor-pointer"
               >
                 {q}
               </button>
@@ -74,7 +74,7 @@ export function QuestionComposer({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="relative flex items-end border rounded-xl bg-card shadow-xs focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition">
+      <form onSubmit={handleSubmit} className="relative flex items-end border border-input rounded-xl bg-card shadow-2xs focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition">
         <textarea
           ref={textareaRef}
           value={question}
@@ -82,16 +82,16 @@ export function QuestionComposer({
           onKeyDown={handleKeyDown}
           disabled={disabled || isRunning}
           rows={1}
-          placeholder={disabled ? "Select a ready dataset to begin analysis..." : "Ask a question about this dataset (Shift+Enter for newline)..."}
-          className="w-full resize-none bg-transparent px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none max-h-40 min-h-[44px]"
+          placeholder={disabled ? "Select a ready dataset to begin analysis..." : "Ask a question about your dataset..."}
+          className="w-full resize-none bg-transparent px-4 py-3 text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none max-h-40 min-h-[48px]"
         />
 
-        <div className="p-2 shrink-0">
+        <div className="p-2 shrink-0 flex items-center gap-1.5">
           {isRunning ? (
             <button
               type="button"
               onClick={onCancel}
-              className="p-2 rounded-lg bg-rose-500 text-white hover:bg-rose-600 transition flex items-center justify-center"
+              className="p-2.5 rounded-lg bg-rose-500 text-white hover:bg-rose-600 transition flex items-center justify-center cursor-pointer shadow-2xs"
               title="Stop analysis"
             >
               <Square className="h-4 w-4 fill-current" />
@@ -100,7 +100,7 @@ export function QuestionComposer({
             <button
               type="submit"
               disabled={disabled || !question.trim() || question.trim().length < 3}
-              className="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition flex items-center justify-center"
+              className="p-2.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition flex items-center justify-center cursor-pointer shadow-2xs"
               title="Submit analytical question"
             >
               <Send className="h-4 w-4" />

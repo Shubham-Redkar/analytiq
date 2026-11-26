@@ -35,32 +35,32 @@ export function EvidencePanel({
   };
 
   return (
-    <div className="space-y-4 text-xs">
+    <div className="space-y-4 text-sm">
       {/* 1. Verification Summary Card */}
-      <div className="p-3 border rounded-lg bg-card/60 space-y-2">
+      <div className="p-3.5 border border-border rounded-xl bg-card/60 space-y-2.5">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 font-semibold text-foreground text-sm">
+          <div className="flex items-center gap-2 font-semibold text-foreground text-sm">
             <ShieldCheck className="h-4 w-4 text-primary" />
             <span>Analytical Verification</span>
           </div>
           {verification?.status === "verified" && (
-            <span className="flex items-center gap-1 text-emerald-500 font-medium">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Verified
+            <span className="flex items-center gap-1 text-emerald-500 font-medium text-xs">
+              <CheckCircle2 className="h-4 w-4" /> Verified
             </span>
           )}
           {verification?.status === "partially_verified" && (
-            <span className="flex items-center gap-1 text-amber-500 font-medium">
-              <AlertTriangle className="h-3.5 w-3.5" /> Partially Verified
+            <span className="flex items-center gap-1 text-amber-500 font-medium text-xs">
+              <AlertTriangle className="h-4 w-4" /> Partially Verified
             </span>
           )}
           {verification?.status === "contradicted" && (
-            <span className="flex items-center gap-1 text-rose-500 font-medium">
-              <XCircle className="h-3.5 w-3.5" /> Contradicted
+            <span className="flex items-center gap-1 text-rose-500 font-medium text-xs">
+              <XCircle className="h-4 w-4" /> Contradicted
             </span>
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-2 pt-1 border-t text-muted-foreground">
+        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/80 text-muted-foreground text-xs">
           <div>
             <span>Verified claims:</span>{" "}
             <span className="font-semibold text-foreground">
@@ -76,7 +76,7 @@ export function EvidencePanel({
         </div>
 
         {verification?.verification_notes && (
-          <p className="text-muted-foreground italic text-[11px] pt-1">
+          <p className="text-muted-foreground italic text-xs pt-1">
             {verification.verification_notes}
           </p>
         )}
@@ -85,20 +85,20 @@ export function EvidencePanel({
       {/* 2. Verified Claims List with Evidence Coordinates */}
       {verification?.verified_claims && verification.verified_claims.length > 0 && (
         <div className="space-y-2">
-          <span className="font-semibold text-foreground block">Verified Claims</span>
+          <span className="font-semibold text-foreground text-sm block">Verified Claims</span>
           <div className="space-y-1.5">
             {verification.verified_claims.map((claim) => (
               <div
                 key={claim.claim_id}
-                className="p-2 border rounded bg-card hover:bg-muted/40 transition flex items-start justify-between gap-2"
+                className="p-3 border border-border rounded-xl bg-card hover:bg-muted/40 transition flex items-start justify-between gap-3 shadow-2xs"
               >
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-1 font-medium text-foreground">
-                    <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" />
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 font-medium text-sm text-foreground">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
                     <span>{claim.claim_text}</span>
                   </div>
                   {claim.actual_value !== undefined && (
-                    <div className="text-muted-foreground font-mono text-[11px]">
+                    <div className="text-muted-foreground font-mono text-xs pl-6">
                       Value: {String(claim.actual_value)}
                     </div>
                   )}
@@ -115,7 +115,7 @@ export function EvidencePanel({
                         });
                       }
                     }}
-                    className="text-[10px] text-primary hover:underline px-1.5 py-0.5 rounded border border-primary/30 shrink-0"
+                    className="text-xs font-medium text-primary hover:underline px-2.5 py-1 rounded-md border border-primary/30 shrink-0 cursor-pointer"
                   >
                     Inspect Cell
                   </button>
@@ -128,14 +128,14 @@ export function EvidencePanel({
 
       {/* 3. Executed SQL Inspector */}
       {executedSql && (
-        <div className="border rounded-lg bg-card/60 overflow-hidden">
+        <div className="border border-border rounded-xl bg-card/60 overflow-hidden shadow-2xs">
           <div
             onClick={() => setShowSql(!showSql)}
-            className="flex items-center justify-between p-2.5 bg-muted/40 cursor-pointer select-none"
+            className="flex items-center justify-between p-3 bg-muted/40 cursor-pointer select-none border-b border-border"
           >
-            <div className="flex items-center gap-1.5 font-semibold text-foreground">
-              <Code className="h-3.5 w-3.5 text-muted-foreground" />
-              <span>Executed SQL</span>
+            <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
+              <Code className="h-4 w-4 text-muted-foreground" />
+              <span>Executed DuckDB SQL</span>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -143,22 +143,22 @@ export function EvidencePanel({
                   e.stopPropagation();
                   copySql();
                 }}
-                className="p-1 hover:text-foreground text-muted-foreground transition"
+                className="p-1.5 hover:text-foreground text-muted-foreground transition rounded cursor-pointer"
                 title="Copy SQL"
               >
                 {copiedSql ? (
-                  <Check className="h-3.5 w-3.5 text-emerald-500" />
+                  <Check className="h-4 w-4 text-emerald-500" />
                 ) : (
-                  <Copy className="h-3.5 w-3.5" />
+                  <Copy className="h-4 w-4" />
                 )}
               </button>
-              {showSql ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+              {showSql ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             </div>
           </div>
 
           {showSql && (
-            <div className="p-3 bg-muted/20 border-t overflow-x-auto">
-              <pre className="font-mono text-[11px] text-foreground leading-relaxed">
+            <div className="p-3.5 bg-muted/20 overflow-x-auto">
+              <pre className="font-mono text-[13px] text-foreground leading-relaxed">
                 {executedSql}
               </pre>
             </div>

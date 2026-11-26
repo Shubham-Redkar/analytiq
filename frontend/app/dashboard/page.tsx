@@ -212,12 +212,12 @@ export default function DashboardPage() {
             <div className="mt-5 pt-4 border-t border-border/60 flex items-center justify-between">
               <Link
                 href="/analysis"
-                className="text-sm font-semibold text-primary hover:underline transition-colors flex items-center gap-1"
+                className="text-sm font-semibold text-primary hover:underline transition-colors flex items-center gap-1.5"
               >
-                <span>Start analysis</span>
+                <span>Enter workspace</span>
                 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
-              <span className="text-xs text-muted-foreground">Evidence Verified</span>
+              <span className="text-xs text-muted-foreground">Deterministic Grounding</span>
             </div>
           </div>
         </div>
@@ -285,7 +285,7 @@ export default function DashboardPage() {
                   <Link href="/analysis">
                     <Button className="cursor-pointer font-semibold shadow-xs">
                       <LineChart className="mr-1.5 h-4 w-4" />
-                      Start Analysis
+                      Open Workspace
                     </Button>
                   </Link>
                   <Link href="/datasets">

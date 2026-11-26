@@ -117,6 +117,60 @@ export function classifyColumn(col: ColumnSchema): SemanticColumnRole["role"] {
   return "unknown";
 }
 
+/**
+ * Format a database column name into a natural human-readable label.
+ * Handles snake_case, camelCase, PascalCase, and common analytical aliases.
+ */
+export function formatColumnLabel(colName: string): string {
+  const trimmed = colName.trim();
+  const lower = trimmed.toLowerCase();
+
+  // Known domain-specific semantic mappings
+  const aliases: Record<string, string> = {
+    pclass: "passenger class",
+    fare: "fare",
+    age: "age",
+    sex: "gender",
+    gender: "gender",
+    survived: "survival",
+    embarked: "port of embarkation",
+    sibsp: "siblings/spouses aboard",
+    parch: "parents/children aboard",
+    revenue: "revenue",
+    sales: "sales",
+    profit: "profit",
+    price: "price",
+    cost: "cost",
+    quantity: "quantity",
+    discount: "discount",
+    region: "region",
+    country: "country",
+    state: "state",
+    city: "city",
+    department: "department",
+    category: "category",
+    sub_category: "sub-category",
+    order_date: "order date",
+    ship_date: "ship date",
+  };
+
+  if (aliases[lower]) {
+    return aliases[lower];
+  }
+
+  // Decompose snake_case or kebab-case
+  if (trimmed.includes("_") || trimmed.includes("-")) {
+    return trimmed
+      .split(/[_-]+/)
+      .map((part) => part.toLowerCase())
+      .join(" ");
+  }
+
+  // Decompose camelCase / PascalCase
+  const words = trimmed.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+  return words;
+}
+
 export function generateSuggestedQuestions(schema?: DatasetSchema | null, datasetName?: string): string[] {
   if (!schema || !schema.columns || schema.columns.length === 0) {
     return [
@@ -145,31 +199,45 @@ export function generateSuggestedQuestions(schema?: DatasetSchema | null, datase
   // 1. Overall record count
   suggestions.push(`How many ${entityName} are in this dataset?`);
 
-  // 2. Binary outcome comparison (e.g. survival rate by gender/class)
+  // 2. Binary outcome comparison (e.g. survival rate by passenger class / gender)
   if (outcomes.length > 0 && categoricals.length > 0) {
     const outcomeCol = outcomes[0].name;
     const catCol = categoricals[0].name;
-    suggestions.push(`Compare ${outcomeCol.toLowerCase()} rates by ${catCol}.`);
+    const outcomeLabel = formatColumnLabel(outcomeCol);
+    const catLabel = formatColumnLabel(catCol);
+
+    // Natural outcome rate phrasing
+    if (outcomeLabel === "survival" || outcomeLabel === "survived") {
+      suggestions.push(`Compare survival rates by ${catLabel}.`);
+    } else {
+      suggestions.push(`Compare ${outcomeLabel} rates by ${catLabel}.`);
+    }
   }
 
-  // 3. Measure comparison grouped by categorical (e.g. average fare by passenger class)
+  // 3. Measure comparison grouped by categorical (e.g. average fare by passenger class / age by gender)
   if (measures.length > 0 && categoricals.length > 0) {
     const measureCol = measures[0].name;
     const catCol = categoricals.length > 1 ? categoricals[1].name : categoricals[0].name;
-    suggestions.push(`What is the average ${measureCol} by ${catCol}?`);
+    const measureLabel = formatColumnLabel(measureCol);
+    const catLabel = formatColumnLabel(catCol);
+    suggestions.push(`What is the average ${measureLabel} by ${catLabel}?`);
   } else if (measures.length > 0) {
-    suggestions.push(`What is the average ${measures[0].name}?`);
+    const measureLabel = formatColumnLabel(measures[0].name);
+    suggestions.push(`What is the average ${measureLabel}?`);
   }
 
   // 4. Distribution / count by category
   if (categoricals.length > 0) {
     const catCol = categoricals[0].name;
-    suggestions.push(`How many ${entityName} belong to each ${catCol}?`);
+    const catLabel = formatColumnLabel(catCol);
+    suggestions.push(`How many ${entityName} are in each ${catLabel}?`);
   }
 
   // 5. Temporal trend if temporal column exists
   if (temporals.length > 0 && measures.length > 0) {
-    suggestions.push(`Show trend of ${measures[0].name} over ${temporals[0].name}.`);
+    const measureLabel = formatColumnLabel(measures[0].name);
+    const tempLabel = formatColumnLabel(temporals[0].name);
+    suggestions.push(`Show trend of ${measureLabel} over ${tempLabel}.`);
   }
 
   // 6. Data quality / missing values
