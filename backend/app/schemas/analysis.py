@@ -23,6 +23,10 @@ class AnalysisQueryRequest(BaseModel):
         max_length=2000,
         description="Natural language analytical question about the dataset.",
     )
+    session_id: uuid.UUID | None = Field(
+        default=None,
+        description="Optional analytical session ID to persist run into.",
+    )
 
 
 class AnalysisStatusResponse(BaseModel):

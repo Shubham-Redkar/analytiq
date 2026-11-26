@@ -129,7 +129,10 @@ async def setup_test_db() -> AsyncGenerator[None, None]:
 
         async with engine.begin() as conn:
             await conn.execute(
-                text("TRUNCATE TABLE datasets, sessions, users RESTART IDENTITY CASCADE")
+                text(
+                    "TRUNCATE TABLE analysis_runs, analysis_sessions, "
+                    "datasets, sessions, users RESTART IDENTITY CASCADE"
+                )
             )
     except Exception as exc:
         logger.debug("Test database setup skipped: %s", exc)
