@@ -247,14 +247,16 @@ class AnalysisHistoryService:
             authoritative = response.interpretation.summary
 
         result_payload = {
-            "columns": [col.model_dump() for col in response.columns],
+            "columns": [col.model_dump(mode="json") for col in response.columns],
             "rows": response.rows,
         }
 
-        verification_payload = response.verification.model_dump() if response.verification else None
-        evidence_payload = response.evidence.model_dump() if response.evidence else None
+        verification_payload = (
+            response.verification.model_dump(mode="json") if response.verification else None
+        )
+        evidence_payload = response.evidence.model_dump(mode="json") if response.evidence else None
         clarification_payload = (
-            response.clarification.model_dump() if response.clarification else None
+            response.clarification.model_dump(mode="json") if response.clarification else None
         )
 
         run = AnalysisRun(
