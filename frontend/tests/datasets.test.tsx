@@ -119,7 +119,9 @@ describe("M2 Dataset Experience", () => {
 
       await waitFor(() => {
         expect(screen.getByText(/no datasets uploaded yet/i)).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: /upload your first dataset/i })).toBeInTheDocument();
+        expect(
+          screen.getByRole("button", { name: /upload your first dataset/i })
+        ).toBeInTheDocument();
       });
     });
 
@@ -437,7 +439,9 @@ describe("M2 Dataset Experience", () => {
         expect(screen.getByText(/missing values by column/i)).toBeInTheDocument();
         expect(screen.getByText("amount")).toBeInTheDocument();
         expect(screen.getByText("5%")).toBeInTheDocument();
-        expect(screen.getByText(/1 column contains missing values, affecting 5 cells/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/1 column contains missing values, affecting 5 cells/i)
+        ).toBeInTheDocument();
         expect(screen.getByText(/understanding quality indicators/i)).toBeInTheDocument();
       });
     });
@@ -449,15 +453,17 @@ describe("M2 Dataset Experience", () => {
       };
       vi.spyOn(api, "getDataset").mockResolvedValue(largeDataset);
 
-      const mockPreview = vi.spyOn(api, "getDatasetPreview").mockImplementation(async (_id, offset) => ({
-        columns: [{ name: "id", duckdb_type: "BIGINT", logical_type: "integer" }],
-        rows: Array.from({ length: 25 }, (_, i) => ({ id: (offset || 0) + i + 1 })),
-        total_rows: 2500,
-        offset: offset || 0,
-        limit: 25,
-        has_next: (offset || 0) + 25 < 2500,
-        has_previous: (offset || 0) > 0,
-      }));
+      const mockPreview = vi
+        .spyOn(api, "getDatasetPreview")
+        .mockImplementation(async (_id, offset) => ({
+          columns: [{ name: "id", duckdb_type: "BIGINT", logical_type: "integer" }],
+          rows: Array.from({ length: 25 }, (_, i) => ({ id: (offset || 0) + i + 1 })),
+          total_rows: 2500,
+          offset: offset || 0,
+          limit: 25,
+          has_next: (offset || 0) + 25 < 2500,
+          has_previous: (offset || 0) > 0,
+        }));
 
       render(<DatasetDetailContent id={largeDataset.id} />);
 

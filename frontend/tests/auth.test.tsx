@@ -29,14 +29,10 @@ describe("Authentication Pages", () => {
     it("renders login form with required fields", () => {
       render(<LoginPage />);
 
-      expect(
-        screen.getByRole("heading", { name: /sign in to analytiq/i })
-      ).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: /sign in to analytiq/i })).toBeInTheDocument();
       expect(screen.getByLabelText(/email address/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /sign in/i })
-      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /sign in/i })).toBeInTheDocument();
     });
 
     it("displays error message when login fails", async () => {
@@ -62,9 +58,11 @@ describe("Authentication Pages", () => {
     });
 
     it("displays lockout message when account is throttled (HTTP 423)", async () => {
-      const mockLogin = vi.fn().mockRejectedValue(
-        new ApiError("Account temporarily locked due to too many failed login attempts.", 423)
-      );
+      const mockLogin = vi
+        .fn()
+        .mockRejectedValue(
+          new ApiError("Account temporarily locked due to too many failed login attempts.", 423)
+        );
       vi.spyOn(authContext, "useAuth").mockReturnValue({
         user: null,
         loading: false,
@@ -86,9 +84,7 @@ describe("Authentication Pages", () => {
     });
 
     it("displays security message on CSRF failure (HTTP 403)", async () => {
-      const mockLogin = vi.fn().mockRejectedValue(
-        new ApiError("CSRF validation failed", 403)
-      );
+      const mockLogin = vi.fn().mockRejectedValue(new ApiError("CSRF validation failed", 403));
       vi.spyOn(authContext, "useAuth").mockReturnValue({
         user: null,
         loading: false,
@@ -110,9 +106,7 @@ describe("Authentication Pages", () => {
     });
 
     it("displays server error message on 500 status", async () => {
-      const mockLogin = vi.fn().mockRejectedValue(
-        new ApiError("Internal server error", 500)
-      );
+      const mockLogin = vi.fn().mockRejectedValue(new ApiError("Internal server error", 500));
       vi.spyOn(authContext, "useAuth").mockReturnValue({
         user: null,
         loading: false,
@@ -134,9 +128,9 @@ describe("Authentication Pages", () => {
     });
 
     it("displays network error message on connection failure", async () => {
-      const mockLogin = vi.fn().mockRejectedValue(
-        new ApiError("Unable to connect to the server.", 0, "network")
-      );
+      const mockLogin = vi
+        .fn()
+        .mockRejectedValue(new ApiError("Unable to connect to the server.", 0, "network"));
       vi.spyOn(authContext, "useAuth").mockReturnValue({
         user: null,
         loading: false,
@@ -197,9 +191,7 @@ describe("Authentication Pages", () => {
       expect(screen.getByLabelText(/email address/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/^password/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /create account/i })
-      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /create account/i })).toBeInTheDocument();
     });
 
     it("validates password length under 8 characters", async () => {
@@ -225,9 +217,7 @@ describe("Authentication Pages", () => {
       await userEvent.type(screen.getByLabelText(/confirm password/i), "PasswordMismatch!");
       await userEvent.click(screen.getByRole("button", { name: /create account/i }));
 
-      expect(
-        await screen.findByText(/passwords do not match/i)
-      ).toBeInTheDocument();
+      expect(await screen.findByText(/passwords do not match/i)).toBeInTheDocument();
     });
   });
 });

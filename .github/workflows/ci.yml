@@ -117,6 +117,9 @@ jobs:
       - name: Lint – ESLint
         run: npm run lint
 
+      - name: Format – Clean formatting check
+        run: npm run format:check
+
       - name: Type check – TypeScript
         run: npx tsc --noEmit
 

@@ -377,3 +377,138 @@ class TestAnalyticalServicePipeline:
         assert res.status == "query_rejected"
         assert "unapproved_function" in (res.error_message or "").lower()
         assert res.rows == []
+
+    @pytest.mark.asyncio
+    async def test_non_ready_dataset_rejected(self, test_dataset: Dataset) -> None:
+        test_dataset.status = "processing"
+        mock_provider = MockLLMProvider()
+        svc = AnalysisService(llm_provider=mock_provider)
+        res = await svc.run_analysis(test_dataset, "How many rows?")
+        assert res.status == "failed"
+        assert "ready" in (res.error_message or "").lower()
+
+    @pytest.mark.asyncio
+    async def test_evidence_fingerprints_determinism_and_sensitivity(
+        self,
+        test_dataset: Dataset,
+        test_parquet_file: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from app.analysis.evidence import compute_result_fingerprint
+
+        # Identical columns and rows yield identical fingerprint
+        cols = ["id", "val"]
+        rows1 = [[1, 10.0], [2, 20.0]]
+        rows2 = [[1, 10.0], [2, 20.0]]
+        fp1 = compute_result_fingerprint(cols, rows1)
+        fp2 = compute_result_fingerprint(cols, rows2)
+        assert fp1 == fp2
+
+        # Swapped columns or swapped values yield distinct fingerprint
+        rows_swapped_val = [[1, 20.0], [2, 10.0]]
+        fp3 = compute_result_fingerprint(cols, rows_swapped_val)
+        assert fp1 != fp3
+
+        # Swapped column order yields distinct fingerprint
+        cols_swapped = ["val", "id"]
+        fp4 = compute_result_fingerprint(cols_swapped, rows1)
+        assert fp1 != fp4
+
+        # Null vs empty string yields distinct fingerprint
+        fp_null = compute_result_fingerprint(["text"], [[None]])
+        fp_empty = compute_result_fingerprint(["text"], [[""]])
+        assert fp_null != fp_empty
+
+    @pytest.mark.asyncio
+    async def test_context_privacy_sample_exclusion_and_boundaries(
+        self, test_dataset: Dataset
+    ) -> None:
+        from app.analysis.context_builder import build_dataset_context
+
+        # Default excludes raw samples
+        ctx_default = build_dataset_context(test_dataset)
+        for col in ctx_default.columns:
+            # High cardinality or non-discrete columns must have 0 samples
+            if col.name == "val":
+                assert len(col.sample_values) == 0
+
+        # When include_samples=True, samples are populated but bounded
+        ctx_samples = build_dataset_context(test_dataset, include_samples=True)
+        for col in ctx_samples.columns:
+            assert len(col.sample_values) <= 5
+
+    @pytest.mark.asyncio
+    async def test_benchmark_numerical_tolerances_and_integrity(self) -> None:
+        """Verify that benchmark numerical validators enforce exact tolerances."""
+        from app.analysis.benchmark import BENCHMARK_CASES, HOLDOUT_BENCHMARK_CASES
+
+        all_cases = {c.id: c for c in BENCHMARK_CASES + HOLDOUT_BENCHMARK_CASES}
+
+        # TC-15: exact median is 305.0
+        tc15 = all_cases["TC-15"]
+        assert tc15.result_validator is not None
+        assert tc15.result_validator([[305.0]], None) is True
+        assert tc15.result_validator([[260.0]], None) is False
+        assert tc15.result_validator([[350.0]], None) is False
+
+        # HC-10: exact min non-zero discount is 0.05
+        hc10 = all_cases["HC-10"]
+        assert hc10.result_validator is not None
+        assert hc10.result_validator([[0.05]], None) is True
+        assert hc10.result_validator([[0.10]], None) is False
+        assert hc10.result_validator([[0.0]], None) is False
+
+        # HC-09: exact distinct combinations is 11
+        hc09 = all_cases["HC-09"]
+        assert hc09.result_validator is not None
+        assert hc09.result_validator([[11]], None) is True
+        assert hc09.result_validator([[10]], None) is False
+        assert hc09.result_validator([[12]], None) is False
+
+    @pytest.mark.asyncio
+    async def test_benchmark_macro_categories_strictly_partition(self) -> None:
+        """Verify that macro categories partition all 40 cases without overlap."""
+        from app.analysis.benchmark import BENCHMARK_CASES, HOLDOUT_BENCHMARK_CASES
+
+        all_cases = BENCHMARK_CASES + HOLDOUT_BENCHMARK_CASES
+        assert len(all_cases) == 40
+        ids = [c.id for c in all_cases]
+        assert len(set(ids)) == 40
+
+        macros = [c.macro_category for c in all_cases]
+        assert all(bool(m) for m in macros)
+        assert len(macros) == 40
+
+    @pytest.mark.asyncio
+    async def test_select_alias_scope_security(self) -> None:
+        """Verify that SELECT alias resolution cannot bypass physical column checks."""
+        from app.analysis.contracts import ColumnContext, DatasetAnalyticalContext
+        from app.analysis.sql_validator import SQLSecurityValidator
+
+        ctx = DatasetAnalyticalContext(
+            dataset_name="Test",
+            row_count=100,
+            column_count=2,
+            columns=[
+                ColumnContext(name="region", physical_type="VARCHAR", logical_type="string"),
+                ColumnContext(name="revenue", physical_type="DOUBLE", logical_type="float"),
+            ],
+        )
+        validator = SQLSecurityValidator()
+
+        # Valid alias in ORDER BY
+        valid_q = (
+            "SELECT region, SUM(revenue) AS total_rev "
+            "FROM dataset GROUP BY region ORDER BY total_rev DESC"
+        )
+        r1 = validator.validate(valid_q, ctx)
+        assert r1.is_valid is True
+
+        # Invalid column in ORDER BY that is NOT an alias and NOT in schema
+        invalid_q = (
+            "SELECT region, SUM(revenue) AS total_rev "
+            "FROM dataset GROUP BY region ORDER BY fake_col DESC"
+        )
+        r2 = validator.validate(invalid_q, ctx)
+        assert r2.is_valid is False
+        assert r2.category == SQLValidationCategory.UNKNOWN_COLUMN

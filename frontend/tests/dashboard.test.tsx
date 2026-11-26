@@ -14,6 +14,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: mockPush,
   }),
+  usePathname: () => "/dashboard",
 }));
 
 const mockUser = {
@@ -69,7 +70,9 @@ describe("Dashboard M2 Dynamic Integration & UX", () => {
     });
 
     render(<DashboardPage />);
-    expect(screen.getByRole("heading", { name: /welcome back, lead analyst/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /welcome back, lead analyst/i })
+    ).toBeInTheDocument();
   });
 
   it("3. handles missing display names gracefully without formatting artifacts", () => {
@@ -147,9 +150,7 @@ describe("Dashboard M2 Dynamic Integration & UX", () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/3 active datasets ready for exploration/i)
-      ).toBeInTheDocument();
+      expect(screen.getByText(/3 active datasets ready for exploration/i)).toBeInTheDocument();
     });
   });
 
@@ -216,10 +217,17 @@ describe("Dashboard M2 Dynamic Integration & UX", () => {
       page_size: 1,
       total_pages: 0,
     });
+    vi.spyOn(api, "listAnalysisSessions").mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 20,
+      total_pages: 0,
+    });
 
     render(<DashboardPage />);
-    expect(screen.getByText(/coming soon/i)).toBeInTheDocument();
-    expect(screen.getByText(/explore your datasets with intelligent analysis tools/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Analyses" })).toBeInTheDocument();
+    expect(screen.getByText(/ask questions, formulate verified sql queries/i)).toBeInTheDocument();
   });
 
   it("9. dashboard redirects to login when unauthenticated", () => {

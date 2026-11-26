@@ -222,6 +222,10 @@ class SQLSecurityValidator:
 
         # 6. Function validation (run first so file/system functions are identified)
         for func in root.find_all(exp.Func):
+            # In SQLGlot AST, binary connectors like exp.And / exp.Or inherit from exp.Func
+            if isinstance(func, (exp.Connector, exp.Binary)):
+                continue
+
             func_name = func.key.upper() if func.key else ""
             if not func_name:
                 continue
@@ -286,9 +290,15 @@ class SQLSecurityValidator:
                     ),
                 )
 
-        # 8. Column validation against dataset context
+        # 8. Column validation against dataset context and SELECT aliases
         valid_columns_case_map: dict[str, str] = {
             col.name.lower(): col.name for col in context.columns
+        }
+        # Collect SELECT aliases defined in query expressions (e.g. SELECT AVG(x) AS avg_x)
+        select_aliases: set[str] = {
+            alias_node.alias_or_name.lower()
+            for alias_node in root.find_all(exp.Alias)
+            if alias_node.alias_or_name
         }
         referenced_columns: set[str] = set()
 
@@ -303,8 +313,11 @@ class SQLSecurityValidator:
 
             col_lower = col_name.lower()
             if col_lower not in valid_columns_case_map:
-                # Could be a column introduced in a CTE alias; check if parent is inside a CTE scope
-                # If table qualifier is specified and points to a CTE, allow
+                # 1. Could be an alias introduced in SELECT and used in ORDER BY or HAVING
+                if col_lower in select_aliases:
+                    continue
+
+                # 2. Could be a column introduced in CTE; check if qualifier matches CTE
                 table_qualifier = col_node.table.lower() if col_node.table else ""
                 if table_qualifier and table_qualifier in valid_cte_names:
                     continue

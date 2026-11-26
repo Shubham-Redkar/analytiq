@@ -71,20 +71,41 @@ class RestrictedQueryExecutor:
         deadline = timeout_seconds or self.query_timeout_seconds
         loop = asyncio.get_running_loop()
 
-        # Execute synchronous query worker in thread pool with active interruption
-        return await loop.run_in_executor(
-            None,
-            self._sync_execute_worker,
-            parquet_path,
-            approved_sql,
-            deadline,
-        )
+        # Shared reference to allow async cancellation to interrupt synchronous DuckDB execution
+        con_holder: list[duckdb.DuckDBPyConnection | None] = [None]
+
+        def _run_worker() -> tuple[list[str], list[str], list[list[Any]], float, bool]:
+            return self._sync_execute_worker(
+                parquet_path,
+                approved_sql,
+                deadline,
+                con_holder,
+            )
+
+        worker_future = loop.run_in_executor(None, _run_worker)
+        try:
+            return await asyncio.shield(worker_future)
+        except asyncio.CancelledError:
+            # Active cancellation from asyncio task: trigger DuckDB connection interrupt immediately
+            con = con_holder[0]
+            if con is not None:
+                try:
+                    con.interrupt()
+                except Exception as ex:
+                    logger.debug("Failed to interrupt DuckDB connection upon cancellation: %s", ex)
+            # Await worker termination so background thread does not outlive task or leak
+            try:
+                await worker_future
+            except Exception:  # noqa: S110
+                pass
+            raise
 
     def _sync_execute_worker(
         self,
         parquet_path: Path,
         approved_sql: str,
         deadline_seconds: float,
+        con_holder: list[duckdb.DuckDBPyConnection | None] | None = None,
     ) -> tuple[list[str], list[str], list[list[Any]], float, bool]:
         """Synchronous worker thread that executes the query and handles interruption."""
         if not parquet_path.exists():
@@ -92,6 +113,8 @@ class RestrictedQueryExecutor:
 
         # 1. Dedicated in-memory connection per query execution
         con = duckdb.connect(database=":memory:")
+        if con_holder is not None:
+            con_holder[0] = con
         start_time = time.perf_counter()
 
         # 2. Timer-based interrupt mechanism covering the entire execution lifecycle
@@ -111,20 +134,20 @@ class RestrictedQueryExecutor:
         timer.start()
 
         try:
-            # 3. Strict Defense-in-Depth configuration & Table materialization
-            con.execute(f"SET max_memory = '{self.memory_limit}';")
-            con.execute(f"SET threads = {self.threads};")
-
-            escaped_path = str(parquet_path.resolve()).replace("'", "''")
-            view_sql = f"CREATE TABLE dataset AS SELECT * FROM read_parquet('{escaped_path}');"  # noqa: S608
-            con.execute(view_sql)
-
-            # Lock external access so the query cannot read other files or network
-            con.execute("SET enable_external_access = false;")
-            con.execute("SET lock_configuration = true;")
-
             # 4. Execute approved analytical query
             try:
+                # 3. Strict Defense-in-Depth configuration & Table materialization
+                con.execute(f"SET max_memory = '{self.memory_limit}';")
+                con.execute(f"SET threads = {self.threads};")
+
+                escaped_path = str(parquet_path.resolve()).replace("'", "''")
+                view_sql = f"CREATE TABLE dataset AS SELECT * FROM read_parquet('{escaped_path}');"  # noqa: S608
+                con.execute(view_sql)
+
+                # Lock external access so the query cannot read other files or network
+                con.execute("SET enable_external_access = false;")
+                con.execute("SET lock_configuration = true;")
+
                 rel = con.execute(approved_sql)
                 col_names = [desc[0] for desc in rel.description] if rel.description else []
                 col_types = [str(desc[1]) for desc in rel.description] if rel.description else []

@@ -105,4 +105,3 @@ export interface DatasetQualityResponse {
   quality_findings: QualityFinding[];
   columns_breakdown?: ColumnMissingBreakdown[];
 }
-

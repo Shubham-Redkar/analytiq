@@ -161,24 +161,26 @@ build:
 
 ## check: Execute all mandatory quality gates in sequence; fail on any error
 check:
-	@echo "=== 1/8 Backend Lint (Ruff) ==="
+	@echo "=== 1/9 Backend Lint (Ruff) ==="
 	cd backend && uv run --locked ruff check .
-	@echo "=== 2/8 Backend Format Check (Ruff) ==="
+	@echo "=== 2/9 Backend Format Check (Ruff) ==="
 	cd backend && uv run --locked ruff format --check .
-	@echo "=== 3/8 Backend Typecheck (Pyright) ==="
+	@echo "=== 3/9 Backend Typecheck (Pyright) ==="
 	cd backend && uv run --locked pyright
-	@echo "=== 4/8 Backend Tests (Pytest) ==="
+	@echo "=== 4/9 Backend Tests (Pytest) ==="
 	cd backend && uv run --locked pytest
-	@echo "=== 5/8 Frontend Lint (ESLint) ==="
+	@echo "=== 5/9 Frontend Lint (ESLint) ==="
 	cd frontend && npm run lint
-	@echo "=== 6/8 Frontend Typecheck (TypeScript) ==="
+	@echo "=== 6/9 Frontend Format Check ==="
+	cd frontend && npm run format:check
+	@echo "=== 7/9 Frontend Typecheck (TypeScript) ==="
 	cd frontend && npx tsc --noEmit
-	@echo "=== 7/8 Frontend Tests (Vitest) ==="
+	@echo "=== 8/9 Frontend Tests (Vitest) ==="
 	cd frontend && npm run test
-	@echo "=== 8/8 Frontend Build (Next.js) ==="
+	@echo "=== 9/9 Frontend Build (Next.js) ==="
 	cd frontend && npm run build
 	@echo ""
-	@echo "All quality gates PASSED successfully."
+	@echo "All 9 quality gates PASSED successfully."
 
 # -----------------------------------------------------------------------------
 # API Inspection

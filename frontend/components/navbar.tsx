@@ -1,18 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 
 export function Navbar() {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   const handleLogout = async () => {
     await logout();
     router.push("/login");
   };
+
+  const isDashboard = pathname === "/dashboard";
+  const isDatasets = pathname?.startsWith("/datasets");
+  const isAnalysis = pathname?.startsWith("/analysis");
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -24,18 +29,38 @@ export function Navbar() {
             </span>
           </Link>
           {user && (
-            <nav className="flex items-center gap-6 text-sm sm:text-base font-medium">
+            <nav
+              className="flex items-center gap-6 text-sm sm:text-base font-medium"
+              aria-label="Main Navigation"
+            >
               <Link
                 href="/dashboard"
-                className="text-foreground transition-colors hover:text-foreground font-semibold"
+                aria-current={isDashboard ? "page" : undefined}
+                className={`transition-colors hover:text-foreground ${
+                  isDashboard
+                    ? "text-foreground font-semibold"
+                    : "text-muted-foreground font-medium"
+                }`}
               >
                 Dashboard
               </Link>
               <Link
                 href="/datasets"
-                className="text-muted-foreground transition-colors hover:text-foreground font-medium"
+                aria-current={isDatasets ? "page" : undefined}
+                className={`transition-colors hover:text-foreground ${
+                  isDatasets ? "text-foreground font-semibold" : "text-muted-foreground font-medium"
+                }`}
               >
                 Datasets
+              </Link>
+              <Link
+                href="/analysis"
+                aria-current={isAnalysis ? "page" : undefined}
+                className={`transition-colors hover:text-foreground ${
+                  isAnalysis ? "text-foreground font-semibold" : "text-muted-foreground font-medium"
+                }`}
+              >
+                Analysis
               </Link>
             </nav>
           )}
@@ -49,12 +74,7 @@ export function Navbar() {
               <span className="hidden md:inline-block text-sm sm:text-base font-medium text-foreground">
                 {user.display_name}
               </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleLogout}
-                className="cursor-pointer"
-              >
+              <Button variant="outline" size="sm" onClick={handleLogout} className="cursor-pointer">
                 Sign out
               </Button>
             </div>
