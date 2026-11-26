@@ -6,14 +6,15 @@ import type {
   WorkflowAnalysisResponse,
   AnalysisSessionSummary,
   StreamProgressEvent,
+  ConversationTurn,
 } from "../../lib/analysis-types";
-import { api } from "../../lib/api";
+import { api, ApiError } from "../../lib/api";
 import { QuestionComposer } from "./question-composer";
 import { AnalysisResponseCard } from "./analysis-response-card";
 import { WorkflowProgress } from "./workflow-progress";
 import { AnalysisHistorySidebar } from "./analysis-history-sidebar";
 import { generateSuggestedQuestions } from "../../lib/suggested-questions";
-import { Database, PanelLeftClose, PanelLeftOpen, AlertCircle } from "lucide-react";
+import { Database, PanelLeftClose, PanelLeftOpen, AlertCircle, RotateCcw } from "lucide-react";
 import { cn } from "cn";
 import {
   Select,
@@ -24,6 +25,25 @@ import {
   SelectPopup,
   SelectItem,
 } from "../ui/select";
+
+function mapErrorToUserFriendlyMessage(status: number, message: string): string {
+  if (status === 401) {
+    return "Your session has expired. Please sign in again.";
+  }
+  if (status === 404) {
+    return "This dataset is no longer available for analysis.";
+  }
+  if (status === 429) {
+    return "The analysis service is busy. Please try again shortly.";
+  }
+  if (status >= 500) {
+    return "Unable to complete this analysis. Please try again.";
+  }
+  if (message.toLowerCase().includes("network") || message.toLowerCase().includes("connection")) {
+    return "The connection to the analysis service was interrupted. Please try again.";
+  }
+  return message || "Unable to complete this analysis. Please try again.";
+}
 
 interface AnalysisWorkspaceProps {
   initialDatasets: Dataset[];
@@ -41,11 +61,12 @@ export function AnalysisWorkspace({
 
   const [sessions, setSessions] = useState<AnalysisSessionSummary[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [responses, setResponses] = useState<WorkflowAnalysisResponse[]>([]);
+  const [turns, setTurns] = useState<ConversationTurn[]>([]);
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [currentProgressEvent, setCurrentProgressEvent] = useState<StreamProgressEvent | null>(
     null
   );
+  const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState<boolean>(true);
   const [generalError, setGeneralError] = useState<string | null>(null);
 
@@ -58,6 +79,7 @@ export function AnalysisWorkspace({
   }, [activeDataset]);
 
   const activeRequestIdRef = useRef<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Load sessions for active dataset
   const loadSessions = React.useCallback(async () => {
@@ -94,37 +116,48 @@ export function AnalysisWorkspace({
     try {
       setIsRunning(false);
       setGeneralError(null);
+      setCurrentProgressEvent(null);
+      setActiveTurnId(null);
       const session = await api.getAnalysisSession(sessionId);
       setActiveSessionId(session.id);
       if (session.dataset_id !== activeDatasetId) {
         setActiveDatasetId(session.dataset_id);
       }
 
-      // Reconstruct WorkflowAnalysisResponse array from saved runs
-      const reconstructed: WorkflowAnalysisResponse[] = session.runs.map((r) => ({
-        request_id: r.request_id,
-        dataset_id: session.dataset_id,
-        status: r.status,
-        question: r.question,
-        intent: r.intent,
-        executed_sql: r.executed_sql,
-        columns: r.columns,
-        rows: r.rows,
-        returned_row_count: r.returned_row_count,
-        dataset_row_count: r.dataset_row_count,
-        total_row_count: r.total_row_count,
-        truncated: r.truncated,
-        unsupported_reason: r.unsupported_reason,
-        error_message: r.error_message,
-        evidence: r.evidence,
-        verification: r.verification,
-        clarification: r.clarification,
-        trace_events: [],
-        total_llm_calls: 0,
-        correction_attempts: 0,
-        total_duration_ms: 0,
-      }));
-      setResponses(reconstructed);
+      // Reconstruct ConversationTurn array from saved runs
+      const reconstructed: ConversationTurn[] = session.runs.map((r) => {
+        const resp: WorkflowAnalysisResponse = {
+          request_id: r.request_id,
+          dataset_id: session.dataset_id,
+          status: r.status,
+          question: r.question,
+          intent: r.intent,
+          executed_sql: r.executed_sql,
+          columns: r.columns,
+          rows: r.rows,
+          returned_row_count: r.returned_row_count,
+          dataset_row_count: r.dataset_row_count,
+          total_row_count: r.total_row_count,
+          truncated: r.truncated,
+          unsupported_reason: r.unsupported_reason,
+          error_message: r.error_message,
+          evidence: r.evidence,
+          verification: r.verification,
+          clarification: r.clarification,
+          trace_events: [],
+          total_llm_calls: 0,
+          correction_attempts: 0,
+          total_duration_ms: 0,
+        };
+        return {
+          id: r.request_id || r.id,
+          question: r.question,
+          status: r.status === "failed" ? "failed" : "completed",
+          response: resp,
+          errorMessage: r.error_message,
+        };
+      });
+      setTurns(reconstructed);
     } catch (e: unknown) {
       setGeneralError(e instanceof Error ? e.message : "Failed to load session history.");
     }
@@ -132,8 +165,9 @@ export function AnalysisWorkspace({
 
   const handleNewSession = () => {
     setActiveSessionId(null);
-    setResponses([]);
+    setTurns([]);
     setCurrentProgressEvent(null);
+    setActiveTurnId(null);
     setGeneralError(null);
   };
 
@@ -158,90 +192,187 @@ export function AnalysisWorkspace({
     }
   };
 
-  // Submit analytical question via SSE Streaming
-  const handleSubmitQuestion = async (question: string) => {
-    if (!activeDatasetId) {
-      setGeneralError("Please select a ready dataset before submitting questions.");
-      return;
-    }
+  // Submit analytical question via SSE Streaming with optimistic user message
+  const handleSubmitQuestion = React.useCallback(
+    async (question: string, retryTurnId?: string) => {
+      if (!activeDatasetId) {
+        setGeneralError("Please select a ready dataset before submitting questions.");
+        return;
+      }
 
-    setIsRunning(true);
-    setGeneralError(null);
-    setCurrentProgressEvent({
-      request_id: "init",
-      seq: 0,
-      event_type: "accepted",
-      stage_name: "Submitting analytical question to workflow...",
-      status: "queued",
-      timestamp: new Date().toISOString(),
-      elapsed_ms: 0,
-    });
+      const turnId = retryTurnId || `turn_${Date.now()}`;
+      const startTime = Date.now();
 
-    try {
-      // Fetch authenticated SSE stream
-      const response = await fetch(`/api/v1/datasets/${activeDatasetId}/analysis/stream`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({
+      if (retryTurnId) {
+        setTurns((prev) =>
+          prev.map((t) =>
+            t.id === retryTurnId
+              ? { ...t, status: "processing", errorMessage: null, startedAt: startTime }
+              : t
+          )
+        );
+      } else {
+        const newTurn: ConversationTurn = {
+          id: turnId,
           question,
-          session_id: activeSessionId || undefined,
-        }),
+          status: "processing",
+          startedAt: startTime,
+        };
+        setTurns((prev) => [...prev, newTurn]);
+      }
+
+      setIsRunning(true);
+      setActiveTurnId(turnId);
+      setGeneralError(null);
+      setCurrentProgressEvent({
+        request_id: "init",
+        seq: 0,
+        event_type: "accepted",
+        stage: "supervisor",
+        stage_name: "Submitting analytical question to workflow...",
+        status: "queued",
+        timestamp: new Date().toISOString(),
+        elapsed_ms: 0,
       });
 
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson.detail || `Server error ${response.status}`);
-      }
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
 
-      if (!response.body) {
-        throw new Error("No readable response stream received.");
-      }
+      try {
+        // Fetch authenticated SSE stream
+        const response = await fetch(`/api/v1/datasets/${activeDatasetId}/analysis/stream`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          signal: abortController.signal,
+          body: JSON.stringify({
+            question,
+            session_id: activeSessionId || undefined,
+          }),
+        });
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-      let buffer = "";
+        if (!response.ok) {
+          const errJson = await response.json().catch(() => ({}));
+          const userMsg = mapErrorToUserFriendlyMessage(
+            response.status,
+            errJson.detail || `Server error ${response.status}`
+          );
+          throw new ApiError(userMsg, response.status);
+        }
 
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
+        if (!response.body) {
+          throw new Error("No readable response stream received.");
+        }
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n\n");
-        buffer = lines.pop() || "";
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+        let receivedResult: WorkflowAnalysisResponse | null = null;
 
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (trimmed.startsWith("data:")) {
-            const jsonStr = trimmed.replace(/^data:\s*/, "");
-            try {
-              const event: StreamProgressEvent = JSON.parse(jsonStr);
-              activeRequestIdRef.current = event.request_id;
-              setCurrentProgressEvent(event);
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
 
-              if (event.event_type === "result" && event.result) {
-                setResponses((prev) => [...prev, event.result!]);
-                loadSessions();
-              } else if (event.event_type === "error") {
-                const msg = (event.payload?.detail as string) || "Workflow encountered an error.";
-                setGeneralError(msg);
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith("data:")) {
+              const jsonStr = trimmed.replace(/^data:\s*/, "");
+              try {
+                const event: StreamProgressEvent = JSON.parse(jsonStr);
+                activeRequestIdRef.current = event.request_id;
+                setCurrentProgressEvent(event);
+
+                if (event.event_type === "result" && event.result) {
+                  receivedResult = event.result;
+                  setTurns((prev) =>
+                    prev.map((t) =>
+                      t.id === turnId
+                        ? {
+                            ...t,
+                            status: "completed",
+                            response: event.result!,
+                            errorMessage: null,
+                          }
+                        : t
+                    )
+                  );
+                  loadSessions();
+                } else if (event.event_type === "cancelled") {
+                  setTurns((prev) =>
+                    prev.map((t) =>
+                      t.id === turnId
+                        ? { ...t, status: "cancelled", errorMessage: "Analysis cancelled by user." }
+                        : t
+                    )
+                  );
+                } else if (event.event_type === "error") {
+                  const msg = (event.payload?.detail as string) || "Workflow encountered an error.";
+                  setTurns((prev) =>
+                    prev.map((t) =>
+                      t.id === turnId ? { ...t, status: "failed", errorMessage: msg } : t
+                    )
+                  );
+                }
+              } catch {
+                // Parse error
               }
-            } catch {
-              // Parse error
             }
           }
         }
+
+        // If stream ended without error and without receiving result (unexpected termination)
+        if (!receivedResult) {
+          setTurns((prev) =>
+            prev.map((t) => {
+              if (t.id === turnId && t.status === "processing") {
+                return {
+                  ...t,
+                  status: "failed",
+                  errorMessage: "The connection was interrupted before the analysis completed.",
+                };
+              }
+              return t;
+            })
+          );
+        }
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === "AbortError") {
+          setTurns((prev) =>
+            prev.map((t) =>
+              t.id === turnId
+                ? { ...t, status: "cancelled", errorMessage: "Analysis cancelled by user." }
+                : t
+            )
+          );
+        } else {
+          const errorMsg =
+            err instanceof ApiError
+              ? err.message
+              : err instanceof Error
+                ? mapErrorToUserFriendlyMessage(0, err.message)
+                : "Unable to complete this analysis. Please try again.";
+          setTurns((prev) =>
+            prev.map((t) =>
+              t.id === turnId ? { ...t, status: "failed", errorMessage: errorMsg } : t
+            )
+          );
+        }
+      } finally {
+        setIsRunning(false);
+        setCurrentProgressEvent(null);
+        setActiveTurnId(null);
+        activeRequestIdRef.current = null;
+        abortControllerRef.current = null;
       }
-    } catch (err: unknown) {
-      setGeneralError(err instanceof Error ? err.message : "Analytical query execution failed.");
-    } finally {
-      setIsRunning(false);
-      setCurrentProgressEvent(null);
-      activeRequestIdRef.current = null;
-    }
-  };
+    },
+    [activeDatasetId, activeSessionId, loadSessions]
+  );
 
   const handleCancel = async () => {
     if (activeRequestIdRef.current && activeDatasetId) {
@@ -251,8 +382,23 @@ export function AnalysisWorkspace({
         // Ignored
       }
     }
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    if (activeTurnId) {
+      setTurns((prev) =>
+        prev.map((t) =>
+          t.id === activeTurnId
+            ? { ...t, status: "cancelled", errorMessage: "Analysis cancelled by user." }
+            : t
+        )
+      );
+    }
     setIsRunning(false);
     setCurrentProgressEvent(null);
+    setActiveTurnId(null);
+    activeRequestIdRef.current = null;
+    abortControllerRef.current = null;
   };
 
   return (
@@ -342,13 +488,13 @@ export function AnalysisWorkspace({
         <div
           className={cn(
             "flex-1 min-h-0 overflow-y-auto p-6",
-            responses.length === 0 && !isRunning
+            turns.length === 0 && !isRunning
               ? "flex flex-col justify-center items-center pb-12"
               : "space-y-6"
           )}
         >
           {generalError && (
-            <div className="w-full max-w-2xl p-4 mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-500 flex items-center justify-between gap-2">
+            <div className="w-full max-w-2xl mx-auto p-4 mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-500 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 <span>{generalError}</span>
@@ -362,7 +508,7 @@ export function AnalysisWorkspace({
             </div>
           )}
 
-          {responses.length === 0 && !isRunning && (
+          {turns.length === 0 && !isRunning && (
             <div className="w-full max-w-2xl mx-auto text-center space-y-6">
               <div className="h-14 w-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-2 shadow-2xs">
                 <Database className="h-7 w-7" />
@@ -400,17 +546,65 @@ export function AnalysisWorkspace({
             </div>
           )}
 
-          {responses.map((resp, idx) => (
-            <AnalysisResponseCard
-              key={`${resp.request_id}-${idx}`}
-              response={resp}
-              onClarify={(opt) => handleSubmitQuestion(opt)}
-            />
-          ))}
+          {/* Conversation turns */}
+          {turns.map((turn) => (
+            <div key={turn.id} className="space-y-4 max-w-4xl mx-auto">
+              {/* User question bubble */}
+              <div className="flex justify-end">
+                <div className="max-w-[85%] sm:max-w-[75%] rounded-2xl bg-primary text-primary-foreground px-4 py-3 text-[15px] leading-relaxed shadow-2xs font-normal">
+                  {turn.question}
+                </div>
+              </div>
 
-          {isRunning && (
-            <WorkflowProgress currentEvent={currentProgressEvent} onCancel={handleCancel} />
-          )}
+              {/* Turn states */}
+              {turn.status === "processing" && (
+                <WorkflowProgress currentEvent={currentProgressEvent} startedAt={turn.startedAt} />
+              )}
+
+              {turn.status === "completed" && turn.response && (
+                <AnalysisResponseCard
+                  response={turn.response}
+                  onClarify={(opt) => handleSubmitQuestion(opt)}
+                />
+              )}
+
+              {turn.status === "failed" && (
+                <div className="border border-border/80 rounded-2xl bg-card p-5 space-y-3.5 shadow-xs">
+                  <div className="flex items-center gap-2 text-rose-500 font-medium text-sm">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    <span>Unable to complete analysis</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    {turn.errorMessage || "The connection was interrupted. Please try again."}
+                  </p>
+                  <div>
+                    <button
+                      onClick={() => handleSubmitQuestion(turn.question, turn.id)}
+                      disabled={isRunning}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-border bg-card hover:bg-muted text-foreground transition cursor-pointer disabled:opacity-50"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      <span>Retry analysis</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {turn.status === "cancelled" && (
+                <div className="border border-border/80 rounded-2xl bg-card/60 p-4 text-xs text-muted-foreground flex items-center justify-between gap-2 shadow-2xs">
+                  <span>Analysis cancelled by user.</span>
+                  <button
+                    onClick={() => handleSubmitQuestion(turn.question, turn.id)}
+                    disabled={isRunning}
+                    className="inline-flex items-center gap-1 text-xs text-foreground hover:underline cursor-pointer"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    <span>Retry</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
 
         {/* Sticky Question Composer Footer */}
@@ -420,7 +614,7 @@ export function AnalysisWorkspace({
             onCancel={handleCancel}
             isRunning={isRunning}
             disabled={!activeDataset || activeDataset.status !== "ready"}
-            suggestedQuestions={responses.length === 0 ? [] : suggestedQuestions}
+            suggestedQuestions={turns.length === 0 ? [] : suggestedQuestions}
           />
         </footer>
       </main>

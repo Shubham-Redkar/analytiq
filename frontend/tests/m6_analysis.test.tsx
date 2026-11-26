@@ -3,8 +3,11 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import React from "react";
 import { ResultTable } from "../components/analysis/result-table";
 import { ClarificationCard } from "../components/analysis/clarification-card";
+import { WorkflowProgress } from "../components/analysis/workflow-progress";
+import { QuestionComposer } from "../components/analysis/question-composer";
 import { recommendChart } from "../lib/chart-recommender";
 import { generateSuggestedQuestions } from "../lib/suggested-questions";
+import type { StreamProgressEvent } from "../lib/analysis-types";
 
 describe("M6 Analysis Frontend Components & Helpers", () => {
   it("generates deterministic schema-aware suggested questions", () => {
@@ -107,5 +110,40 @@ describe("M6 Analysis Frontend Components & Helpers", () => {
 
     fireEvent.click(screen.getByText("Revenue"));
     expect(onSelect).toHaveBeenCalledWith("Revenue");
+  });
+
+  it("WorkflowProgress renders user-friendly stage labels and single progress container", () => {
+    const event: StreamProgressEvent = {
+      request_id: "test-req",
+      seq: 2,
+      event_type: "stage_started",
+      stage: "supervisor",
+      stage_name: "Classifying analytical question",
+      status: "running",
+      timestamp: new Date().toISOString(),
+      elapsed_ms: 50,
+    };
+
+    render(<WorkflowProgress currentEvent={event} startedAt={Date.now()} />);
+
+    expect(screen.getByText("Understanding your question")).toBeDefined();
+    expect(screen.getByText("Analyzing intent and parameters...")).toBeDefined();
+    expect(screen.queryByText("Stage: supervisor")).toBeNull();
+    // Confirms no duplicate Stop button in progress card
+    expect(screen.queryByText("Stop")).toBeNull();
+  });
+
+  it("QuestionComposer renders single Stop control during active processing", () => {
+    const onCancel = vi.fn();
+    const onSubmit = vi.fn();
+
+    render(
+      <QuestionComposer onSubmit={onSubmit} onCancel={onCancel} isRunning={true} disabled={false} />
+    );
+
+    const stopButton = screen.getByLabelText("Stop analysis");
+    expect(stopButton).toBeDefined();
+    fireEvent.click(stopButton);
+    expect(onCancel).toHaveBeenCalled();
   });
 });

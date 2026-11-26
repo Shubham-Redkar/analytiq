@@ -98,10 +98,11 @@ export function QuestionComposer({
             <button
               type="button"
               onClick={onCancel}
-              className="p-2.5 rounded-lg bg-rose-500 text-white hover:bg-rose-600 transition flex items-center justify-center cursor-pointer shadow-2xs"
+              className="p-2.5 rounded-lg border border-border/80 bg-muted text-foreground hover:bg-muted/80 transition flex items-center justify-center cursor-pointer shadow-2xs"
               title="Stop analysis"
+              aria-label="Stop analysis"
             >
-              <Square className="h-4 w-4 fill-current" />
+              <Square className="h-4 w-4 fill-foreground text-foreground" />
             </button>
           ) : (
             <button
@@ -109,6 +110,7 @@ export function QuestionComposer({
               disabled={disabled || !question.trim() || question.trim().length < 3}
               className="p-2.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition flex items-center justify-center cursor-pointer shadow-2xs"
               title="Submit analytical question"
+              aria-label="Submit analytical question"
             >
               <Send className="h-4 w-4" />
             </button>

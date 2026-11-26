@@ -185,3 +185,15 @@ export interface StreamProgressEvent {
   payload?: Record<string, unknown> | null;
   result?: WorkflowAnalysisResponse | null;
 }
+
+export type ConversationItemStatus =
+  "pending" | "processing" | "completed" | "failed" | "cancelled";
+
+export interface ConversationTurn {
+  id: string;
+  question: string;
+  status: ConversationItemStatus;
+  response?: WorkflowAnalysisResponse | null;
+  errorMessage?: string | null;
+  startedAt?: number | null;
+}
