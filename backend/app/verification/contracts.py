@@ -40,6 +40,8 @@ class EvidenceReference(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     evidence_id: str | None = None
+    request_id: str | None = None
+    dataset_id: uuid.UUID | None = None
     result_fingerprint: str
     row_index: int = Field(ge=0)
     column_name: str

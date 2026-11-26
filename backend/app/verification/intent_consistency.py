@@ -123,6 +123,39 @@ def verify_intent_consistency(
                     ),
                 )
 
+    # 5. Check metric identity if plan provides referenced metric columns
+    # Verify that plan's referenced columns or output expressions match requested metrics
+    if plan and plan.referenced_columns:
+        sql_cols = [c.name.lower() for c in ast.find_all(exp.Column)]
+        for ref_col in plan.referenced_columns:
+            if ref_col.lower() not in sql_cols and not any(
+                ref_col.lower() in sc for sc in sql_cols
+            ):
+                return IntentConsistencyResult(
+                    status=IntentConsistencyStatus.CONTRADICTED,
+                    reason_code="METRIC_COLUMN_MISMATCH",
+                    details=(
+                        f"Plan specified metric column '{ref_col}', but it was not queried in SQL."
+                    ),
+                    mismatched_metric=ref_col,
+                )
+
+    # 6. Check filter direction: detect explicit polarity mismatches in string literals
+    # e.g., question mentions "North" only, but SQL has WHERE region = 'South'
+    where_nodes = list(ast.find_all(exp.Where))
+    if where_nodes:
+        sql_literals = [lit.this.lower() for lit in ast.find_all(exp.Literal) if lit.is_string]
+        for term, opposite in [("north", "south"), ("east", "west"), ("high", "low")]:
+            if term in q_lower and opposite not in q_lower:
+                if opposite in sql_literals and term not in sql_literals:
+                    return IntentConsistencyResult(
+                        status=IntentConsistencyStatus.CONTRADICTED,
+                        reason_code="FILTER_POLARITY_MISMATCH",
+                        details=(
+                            f"Question asked for '{term}', but SQL filter specified '{opposite}'."
+                        ),
+                    )
+
     return IntentConsistencyResult(
         status=IntentConsistencyStatus.CONSISTENT,
         reason_code="INTENT_CONSISTENT",

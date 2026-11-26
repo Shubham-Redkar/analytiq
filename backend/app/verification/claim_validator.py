@@ -49,8 +49,10 @@ class ClaimValidator:
         evidence: ExecutionEvidence,
         columns: list[str],
         rows: list[list[Any]],
+        current_request_id: str | None = None,
     ) -> ClaimVerificationResult:
         """Validate an individual claim against evidence and table data."""
+        self._current_request_id = current_request_id
         # 0. Check complexity ceiling
         if len(claim.evidence_references) > self.max_refs:
             return ClaimVerificationResult(
@@ -147,7 +149,10 @@ class ClaimValidator:
             )
 
         ref = claim.evidence_references[0]
-        ok, reason, actual = validate_evidence_reference(ref, evidence, columns, rows)
+        req_id = getattr(self, "_current_request_id", None)
+        ok, reason, actual = validate_evidence_reference(
+            ref, evidence, columns, rows, current_request_id=req_id
+        )
         if not ok:
             return ClaimVerificationResult(
                 claim_id=claim.claim_id,
@@ -431,8 +436,13 @@ class ClaimValidator:
         ref_target = claim.evidence_references[0]
         ref_base = claim.evidence_references[1]
 
-        ok1, _, v1 = validate_evidence_reference(ref_target, evidence, columns, rows)
-        ok2, _, v2 = validate_evidence_reference(ref_base, evidence, columns, rows)
+        req_id = getattr(self, "_current_request_id", None)
+        ok1, _, v1 = validate_evidence_reference(
+            ref_target, evidence, columns, rows, current_request_id=req_id
+        )
+        ok2, _, v2 = validate_evidence_reference(
+            ref_base, evidence, columns, rows, current_request_id=req_id
+        )
 
         if not (ok1 and ok2):
             return ClaimVerificationResult(
@@ -508,8 +518,13 @@ class ClaimValidator:
         ref_base = claim.evidence_references[0]
         ref_target = claim.evidence_references[1]
 
-        ok1, _, v1 = validate_evidence_reference(ref_base, evidence, columns, rows)
-        ok2, _, v2 = validate_evidence_reference(ref_target, evidence, columns, rows)
+        req_id = getattr(self, "_current_request_id", None)
+        ok1, _, v1 = validate_evidence_reference(
+            ref_base, evidence, columns, rows, current_request_id=req_id
+        )
+        ok2, _, v2 = validate_evidence_reference(
+            ref_target, evidence, columns, rows, current_request_id=req_id
+        )
 
         if not (ok1 and ok2):
             return ClaimVerificationResult(
@@ -663,7 +678,7 @@ class ClaimValidator:
                 explanation="Entity metric value is not numeric.",
             )
 
-        expected_prop = calculate_proportion(part_val, total_sum)
+        expected_prop = calculate_proportion(part_val, total_sum, as_percentage=True)
         if expected_prop is None:
             return ClaimVerificationResult(
                 claim_id=claim.claim_id,
@@ -674,7 +689,10 @@ class ClaimValidator:
             )
 
         claimed_prop = float(claim.claimed_proportion_pct)
-        if numbers_match(claimed_prop, expected_prop, rel_tol=0.05, abs_tol=0.1):
+        # Check against percentage (0-100) or decimal ratio (0-1) with display rounding
+        if numbers_match(claimed_prop, expected_prop, display_places=2) or numbers_match(
+            claimed_prop, expected_prop, rel_tol=0.01, abs_tol=0.05
+        ):
             return ClaimVerificationResult(
                 claim_id=claim.claim_id,
                 claim_type=claim.claim_type,

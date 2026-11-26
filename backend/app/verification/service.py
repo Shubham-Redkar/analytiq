@@ -35,6 +35,7 @@ class EvidenceVerificationService:
         columns: list[AnalyticalResultColumn],
         rows: list[list[Any]],
         claims: list[AnalyticalClaim],
+        request_id: str | None = None,
     ) -> VerificationSummary:
         """Execute complete verification across analytical intent and structured claims."""
         t0 = time.monotonic()
@@ -62,6 +63,7 @@ class EvidenceVerificationService:
                 evidence=evidence,
                 columns=col_names,
                 rows=rows,
+                current_request_id=request_id,
             )
             if res.status == VerificationStatus.VERIFIED:
                 verified_claims.append(res)
