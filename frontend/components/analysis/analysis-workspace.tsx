@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useRouter } from "next/navigation";
 import type { Dataset } from "../../lib/types";
 import type {
   WorkflowAnalysisResponse,
@@ -14,7 +15,14 @@ import { AnalysisResponseCard } from "./analysis-response-card";
 import { WorkflowProgress } from "./workflow-progress";
 import { AnalysisHistorySidebar } from "./analysis-history-sidebar";
 import { generateSuggestedQuestions } from "../../lib/suggested-questions";
-import { Database, PanelLeftClose, PanelLeftOpen, AlertCircle, RotateCcw } from "lucide-react";
+import {
+  Database,
+  PanelLeftClose,
+  PanelLeftOpen,
+  AlertCircle,
+  RotateCcw,
+  FileText,
+} from "lucide-react";
 import { cn } from "cn";
 import {
   Select,
@@ -54,6 +62,7 @@ export function AnalysisWorkspace({
   initialDatasets,
   selectedDatasetId: defaultDatasetId,
 }: AnalysisWorkspaceProps) {
+  const router = useRouter();
   const [datasets] = useState<Dataset[]>(initialDatasets);
   const [activeDatasetId, setActiveDatasetId] = useState<string>(
     defaultDatasetId || (initialDatasets.find((d) => d.status === "ready")?.id ?? "")
@@ -61,6 +70,7 @@ export function AnalysisWorkspace({
 
   const [sessions, setSessions] = useState<AnalysisSessionSummary[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [isCreatingReport, setIsCreatingReport] = useState(false);
   const [turns, setTurns] = useState<ConversationTurn[]>([]);
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [currentProgressEvent, setCurrentProgressEvent] = useState<StreamProgressEvent | null>(
@@ -412,6 +422,21 @@ export function AnalysisWorkspace({
     abortControllerRef.current = null;
   };
 
+  const handleCreateReport = async () => {
+    if (!activeSessionId) return;
+    try {
+      setIsCreatingReport(true);
+      const report = await api.createReport({
+        analysis_session_id: activeSessionId,
+      });
+      router.push(`/reports/${report.id}`);
+    } catch {
+      setGeneralError("Unable to create report from this session. Please try again.");
+    } finally {
+      setIsCreatingReport(false);
+    }
+  };
+
   return (
     <div className="flex h-full overflow-hidden bg-background">
       {/* Left Sidebar: Analysis Sessions & History */}
@@ -487,10 +512,23 @@ export function AnalysisWorkspace({
           </div>
 
           {activeDataset && (
-            <div className="text-[13px] text-muted-foreground flex items-center gap-3">
-              <span>{activeDataset.row_count?.toLocaleString() ?? 0} rows</span>
-              <span>·</span>
-              <span>{activeDataset.column_count ?? 0} columns</span>
+            <div className="flex items-center gap-4">
+              <div className="text-[13px] text-muted-foreground flex items-center gap-3">
+                <span>{activeDataset.row_count?.toLocaleString() ?? 0} rows</span>
+                <span>·</span>
+                <span>{activeDataset.column_count ?? 0} columns</span>
+              </div>
+              {turns.length > 0 && activeSessionId && (
+                <button
+                  onClick={handleCreateReport}
+                  disabled={isCreatingReport}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-semibold text-foreground hover:bg-muted transition cursor-pointer shadow-2xs"
+                  title="Generate a verified report from this session"
+                >
+                  <FileText className="h-3.5 w-3.5 text-primary" />
+                  <span>{isCreatingReport ? "Generating..." : "Create Report"}</span>
+                </button>
+              )}
             </div>
           )}
         </header>

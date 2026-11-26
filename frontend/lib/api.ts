@@ -222,4 +222,58 @@ export const api = {
       method: "POST",
     });
   },
+
+  // --- M7 Reports Endpoints ---
+  async listReports(
+    page = 1,
+    pageSize = 20,
+    datasetId?: string
+  ): Promise<import("./report-types").ReportListResponse> {
+    const qs = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+    if (datasetId) qs.set("dataset_id", datasetId);
+    return request(`/api/v1/reports?${qs.toString()}`, { method: "GET" });
+  },
+
+  async createReport(
+    payload: import("./report-types").CreateReportPayload
+  ): Promise<import("./report-types").ReportDetail> {
+    return request("/api/v1/reports", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async getReport(reportId: string): Promise<import("./report-types").ReportDetail> {
+    return request(`/api/v1/reports/${reportId}`, { method: "GET" });
+  },
+
+  async updateReport(
+    reportId: string,
+    payload: import("./report-types").UpdateReportPayload
+  ): Promise<import("./report-types").ReportDetail> {
+    return request(`/api/v1/reports/${reportId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async duplicateReport(reportId: string): Promise<import("./report-types").ReportDetail> {
+    return request(`/api/v1/reports/${reportId}/duplicate`, {
+      method: "POST",
+    });
+  },
+
+  async deleteReport(reportId: string): Promise<void> {
+    return request(`/api/v1/reports/${reportId}`, {
+      method: "DELETE",
+    });
+  },
+
+  getReportPdfUrl(reportId: string): string {
+    return `${API_BASE}/api/v1/reports/${reportId}/export/pdf`;
+  },
+
+  getReportCsvUrl(reportId: string): string {
+    return `${API_BASE}/api/v1/reports/${reportId}/export/csv`;
+  },
 };

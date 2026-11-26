@@ -3,7 +3,16 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Database, LineChart, Plus, Sparkles, ArrowRight, Clock } from "lucide-react";
+import {
+  AlertCircle,
+  Database,
+  LineChart,
+  Plus,
+  Sparkles,
+  ArrowRight,
+  Clock,
+  FileText,
+} from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -18,6 +27,7 @@ export default function DashboardPage() {
   const [datasetError, setDatasetError] = useState<string | null>(null);
 
   const [recentSessions, setRecentSessions] = useState<AnalysisSessionSummary[]>([]);
+  const [reportsCount, setReportsCount] = useState<number | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -53,6 +63,15 @@ export default function DashboardPage() {
         }
       } catch {
         // Non-blocking for recent sessions
+      }
+
+      try {
+        const repRes = await api.listReports(1, 4);
+        if (!ignore) {
+          setReportsCount(repRes.total);
+        }
+      } catch {
+        // Non-blocking for recent reports
       }
     }
 
@@ -123,7 +142,7 @@ export default function DashboardPage() {
         <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-foreground mb-4">
           Workspace Overview
         </h2>
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
           {/* Datasets Card */}
           <div className="rounded-2xl border border-border bg-card p-6 shadow-xs flex flex-col justify-between">
             <div>
@@ -197,7 +216,7 @@ export default function DashboardPage() {
                   <div>
                     <h3 className="text-base font-semibold text-card-foreground">Analyses</h3>
                     <p className="text-xs sm:text-sm text-muted-foreground">
-                      Analytical sessions & reasoning
+                      Interactive analytical sessions
                     </p>
                   </div>
                 </div>
@@ -224,6 +243,47 @@ export default function DashboardPage() {
                 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
               <span className="text-xs text-muted-foreground">Deterministic Grounding</span>
+            </div>
+          </div>
+
+          {/* Reports Card */}
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+                    <FileText className="h-5 w-5 text-foreground/80" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-card-foreground">Reports</h3>
+                    <p className="text-xs sm:text-sm text-muted-foreground">
+                      Published evidence summaries
+                    </p>
+                  </div>
+                </div>
+                {reportsCount !== null && (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary">
+                    {reportsCount} {reportsCount === 1 ? "report" : "reports"}
+                  </span>
+                )}
+              </div>
+              <div className="mt-5 rounded-xl border border-border/60 bg-muted/30 px-4 py-3">
+                <span className="text-xs sm:text-sm font-medium text-muted-foreground">
+                  Export structured findings, interactive charts, and evidence appendices to PDF and
+                  CSV.
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-5 pt-4 border-t border-border/60 flex items-center justify-between">
+              <Link
+                href="/reports"
+                className="text-sm font-semibold text-primary hover:underline transition-colors flex items-center gap-1.5"
+              >
+                <span>View all reports</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+              <span className="text-xs text-muted-foreground">Export Ready</span>
             </div>
           </div>
         </div>

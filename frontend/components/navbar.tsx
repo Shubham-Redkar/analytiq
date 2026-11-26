@@ -18,6 +18,7 @@ export function Navbar() {
   const isDashboard = pathname === "/dashboard";
   const isDatasets = pathname?.startsWith("/datasets");
   const isAnalysis = pathname?.startsWith("/analysis");
+  const isReports = pathname?.startsWith("/reports");
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -61,6 +62,15 @@ export function Navbar() {
                 }`}
               >
                 Analysis
+              </Link>
+              <Link
+                href="/reports"
+                aria-current={isReports ? "page" : undefined}
+                className={`transition-colors hover:text-foreground ${
+                  isReports ? "text-foreground font-semibold" : "text-muted-foreground font-medium"
+                }`}
+              >
+                Reports
               </Link>
             </nav>
           )}

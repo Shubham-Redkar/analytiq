@@ -88,15 +88,30 @@ function AlertDialogClose({ className, ...props }: AlertDialogPrimitive.Close.Pr
   );
 }
 
+const AlertDialogContent = AlertDialogPopup;
+const AlertDialogCancel = AlertDialogClose;
+
+function AlertDialogAction({ className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      className={cn(buttonVariants({ variant: "destructive" }), "cursor-pointer", className)}
+      {...props}
+    />
+  );
+}
+
 export {
   AlertDialog,
   AlertDialogPortal,
   AlertDialogBackdrop,
   AlertDialogTrigger,
   AlertDialogPopup,
+  AlertDialogContent,
   AlertDialogHeader,
   AlertDialogFooter,
   AlertDialogTitle,
   AlertDialogDescription,
   AlertDialogClose,
+  AlertDialogCancel,
+  AlertDialogAction,
 };
