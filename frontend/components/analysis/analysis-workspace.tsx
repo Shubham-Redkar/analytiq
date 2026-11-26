@@ -182,13 +182,24 @@ export function AnalysisWorkspace({
 
   const handleDeleteSession = async (sessionId: string) => {
     try {
+      // If the session being deleted is currently active and running, abort active request
+      if (activeSessionId === sessionId) {
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
+        setIsRunning(false);
+      }
       await api.deleteAnalysisSession(sessionId);
       if (activeSessionId === sessionId) {
         handleNewSession();
       }
-      loadSessions();
-    } catch {
-      // Ignored
+      await loadSessions();
+      setGeneralError(null);
+      return true;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to delete analysis session.";
+      setGeneralError(msg);
+      return false;
     }
   };
 
