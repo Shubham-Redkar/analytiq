@@ -74,7 +74,10 @@ export function QuestionComposer({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="relative flex items-end border border-input rounded-xl bg-card shadow-2xs focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition">
+      <form
+        onSubmit={handleSubmit}
+        className="relative flex items-end border border-input rounded-xl bg-card shadow-2xs focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition"
+      >
         <textarea
           ref={textareaRef}
           value={question}
@@ -82,7 +85,11 @@ export function QuestionComposer({
           onKeyDown={handleKeyDown}
           disabled={disabled || isRunning}
           rows={1}
-          placeholder={disabled ? "Select a ready dataset to begin analysis..." : "Ask a question about your dataset..."}
+          placeholder={
+            disabled
+              ? "Select a ready dataset to begin analysis..."
+              : "Ask a question about your dataset..."
+          }
           className="w-full resize-none bg-transparent px-4 py-3 text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none max-h-40 min-h-[48px]"
         />
 

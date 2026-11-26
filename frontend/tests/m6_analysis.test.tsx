@@ -81,14 +81,7 @@ describe("M6 Analysis Frontend Components & Helpers", () => {
       ["Electronics", null],
     ];
 
-    render(
-      <ResultTable
-        columns={columns}
-        rows={rows}
-        totalRowCount={2}
-        datasetRowCount={100}
-      />
-    );
+    render(<ResultTable columns={columns} rows={rows} totalRowCount={2} datasetRowCount={100} />);
 
     expect(screen.getByText("Category")).toBeDefined();
     expect(screen.getByText("Amount")).toBeDefined();
@@ -107,12 +100,7 @@ describe("M6 Analysis Frontend Components & Helpers", () => {
       ],
     };
 
-    render(
-      <ClarificationCard
-        clarification={clarification}
-        onSelectOption={onSelect}
-      />
-    );
+    render(<ClarificationCard clarification={clarification} onSelectOption={onSelect} />);
 
     expect(screen.getByText("Clarification Needed")).toBeDefined();
     expect(screen.getByText("Revenue")).toBeDefined();

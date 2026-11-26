@@ -6,7 +6,18 @@ import type {
   VerificationSummary,
   WorkflowTraceEvent,
 } from "../../lib/analysis-types";
-import { CheckCircle2, AlertTriangle, XCircle, Code, Clock, ShieldCheck, ChevronDown, ChevronRight, Copy, Check } from "lucide-react";
+import {
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  Code,
+  Clock,
+  ShieldCheck,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Check,
+} from "lucide-react";
 
 interface EvidencePanelProps {
   evidence?: ExecutionEvidence | null;
@@ -202,15 +213,26 @@ export function EvidencePanel({
               <Clock className="h-3.5 w-3.5 text-muted-foreground" />
               <span>Workflow Trace ({traceEvents.length} events)</span>
             </div>
-            {showTrace ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+            {showTrace ? (
+              <ChevronDown className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5" />
+            )}
           </div>
 
           {showTrace && (
             <div className="p-2 space-y-1 bg-muted/20 border-t max-h-48 overflow-y-auto">
               {traceEvents.map((t, idx) => (
-                <div key={idx} className="flex items-center justify-between text-[11px] py-1 border-b last:border-0">
-                  <span className="font-medium text-foreground">{t.node}: {t.action}</span>
-                  <span className="font-mono text-muted-foreground">{t.duration_ms.toFixed(0)}ms</span>
+                <div
+                  key={idx}
+                  className="flex items-center justify-between text-[11px] py-1 border-b last:border-0"
+                >
+                  <span className="font-medium text-foreground">
+                    {t.node}: {t.action}
+                  </span>
+                  <span className="font-mono text-muted-foreground">
+                    {t.duration_ms.toFixed(0)}ms
+                  </span>
                 </div>
               ))}
             </div>

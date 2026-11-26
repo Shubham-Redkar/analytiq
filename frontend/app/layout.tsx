@@ -21,16 +21,9 @@ export const metadata: Metadata = {
     "An evidence-grounded, multi-agent AI data analytics platform that combines AI-driven reasoning with deterministic data processing.",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="h-full flex flex-col bg-background text-foreground overflow-hidden">
         <AuthProvider>
           <Suspense fallback={<div className="h-16 border-b border-border bg-card/95" />}>

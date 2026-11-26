@@ -81,12 +81,11 @@ export function ResultTable({
         <div className="flex items-center gap-2">
           <span>
             Showing {Math.min((currentPage - 1) * pageSize + 1, sortedRows.length)}–
-            {Math.min(currentPage * pageSize, sortedRows.length)} of {sortedRows.length} returned rows
+            {Math.min(currentPage * pageSize, sortedRows.length)} of {sortedRows.length} returned
+            rows
           </span>
           {truncated && (
-            <span className="text-amber-500 font-medium">
-              (Result truncated at query limit)
-            </span>
+            <span className="text-amber-500 font-medium">(Result truncated at query limit)</span>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -127,7 +126,10 @@ export function ResultTable({
           </thead>
           <tbody>
             {pagedRows.map(({ originalIndex, data }) => (
-              <tr key={originalIndex} className="border-b border-border/60 last:border-0 hover:bg-muted/30 transition">
+              <tr
+                key={originalIndex}
+                className="border-b border-border/60 last:border-0 hover:bg-muted/30 transition"
+              >
                 {data.map((cell, colIdx) => {
                   const colName = columns[colIdx]?.name;
                   const isHighlighted =
@@ -140,7 +142,9 @@ export function ResultTable({
                     <td
                       key={colIdx}
                       className={`px-3.5 py-2.5 font-mono text-sm whitespace-nowrap group relative ${
-                        isHighlighted ? "bg-amber-500/20 font-semibold ring-1 ring-amber-500/40 rounded-sm" : ""
+                        isHighlighted
+                          ? "bg-amber-500/20 font-semibold ring-1 ring-amber-500/40 rounded-sm"
+                          : ""
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">

@@ -6,7 +6,15 @@ import { ResultTable } from "./result-table";
 import { ChartContainer } from "./chart-container";
 import { EvidencePanel } from "./evidence-panel";
 import { ClarificationCard } from "./clarification-card";
-import { CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, BarChart2, Table as TableIcon, ShieldAlert } from "lucide-react";
+import {
+  CheckCircle2,
+  AlertTriangle,
+  ChevronDown,
+  ChevronRight,
+  BarChart2,
+  Table as TableIcon,
+  ShieldAlert,
+} from "lucide-react";
 
 interface AnalysisResponseCardProps {
   response: WorkflowAnalysisResponse;
@@ -16,13 +24,17 @@ interface AnalysisResponseCardProps {
 export function AnalysisResponseCard({ response, onClarify }: AnalysisResponseCardProps) {
   const [activeTab, setActiveTab] = useState<"visual" | "table">("visual");
   const [showEvidence, setShowEvidence] = useState(false);
-  const [highlightCoords, setHighlightCoords] = useState<{ row: number; colName: string } | null>(null);
+  const [highlightCoords, setHighlightCoords] = useState<{ row: number; colName: string } | null>(
+    null
+  );
 
   // Authoritative verified answer
   const answer =
     response.verification?.verified_explanation ||
     response.interpretation?.summary ||
-    (response.returned_row_count > 0 ? "Results computed successfully from analytical query." : null);
+    (response.returned_row_count > 0
+      ? "Results computed successfully from analytical query."
+      : null);
 
   const isUnsupported = Boolean(response.unsupported_reason);
   const isFailed = response.status === "failed" || Boolean(response.error_message);
@@ -60,20 +72,23 @@ export function AnalysisResponseCard({ response, onClarify }: AnalysisResponseCa
         <button
           onClick={() => setShowEvidence(!showEvidence)}
           className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition shrink-0 cursor-pointer ${
-            showEvidence ? "bg-primary text-primary-foreground border-primary" : "bg-card hover:bg-muted text-foreground border-border"
+            showEvidence
+              ? "bg-primary text-primary-foreground border-primary"
+              : "bg-card hover:bg-muted text-foreground border-border"
           }`}
         >
           <span>Evidence</span>
-          {showEvidence ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          {showEvidence ? (
+            <ChevronDown className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          )}
         </button>
       </div>
 
       {/* 2. Clarification Needed */}
       {response.clarification?.needs_clarification && onClarify && (
-        <ClarificationCard
-          clarification={response.clarification}
-          onSelectOption={onClarify}
-        />
+        <ClarificationCard clarification={response.clarification} onSelectOption={onClarify} />
       )}
 
       {/* 3. Authoritative Verified Explanation */}
@@ -94,7 +109,9 @@ export function AnalysisResponseCard({ response, onClarify }: AnalysisResponseCa
       {isFailed && (
         <div className="flex items-start gap-2.5 p-3 rounded-xl border border-rose-500/30 bg-rose-500/5 text-xs text-rose-500">
           <ShieldAlert className="h-4 w-4 text-rose-500 shrink-0 mt-0.5" />
-          <span>{response.error_message || "Analytical execution encountered an unrecoverable error."}</span>
+          <span>
+            {response.error_message || "Analytical execution encountered an unrecoverable error."}
+          </span>
         </div>
       )}
 

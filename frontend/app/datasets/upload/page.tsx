@@ -3,14 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  AlertCircle,
-  ArrowLeft,
-  FileSpreadsheet,
-  FileText,
-  UploadCloud,
-  X,
-} from "lucide-react";
+import { AlertCircle, ArrowLeft, FileSpreadsheet, FileText, UploadCloud, X } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { api, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -122,7 +115,8 @@ export default function UploadDatasetPage() {
           Upload Dataset
         </h1>
         <p className="mt-1.5 text-sm sm:text-base text-muted-foreground">
-          Upload a structured CSV or XLSX file. We will infer the schema and calculate deterministic statistics.
+          Upload a structured CSV or XLSX file. We will infer the schema and calculate deterministic
+          statistics.
         </p>
       </div>
 
@@ -165,7 +159,8 @@ export default function UploadDatasetPage() {
           </div>
 
           <h3 className="text-base sm:text-lg font-semibold text-foreground">
-            Drop your dataset file here, or <span className="text-primary hover:underline">browse</span>
+            Drop your dataset file here, or{" "}
+            <span className="text-primary hover:underline">browse</span>
           </h3>
           <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
             Supported formats: CSV (UTF-8) and XLSX (first worksheet). Max file size: 25 MiB.

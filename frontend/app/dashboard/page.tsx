@@ -134,7 +134,9 @@ export default function DashboardPage() {
                   </div>
                   <div>
                     <h3 className="text-base font-semibold text-card-foreground">Datasets</h3>
-                    <p className="text-xs sm:text-sm text-muted-foreground">Data ingestion & exploration</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground">
+                      Data ingestion & exploration
+                    </p>
                   </div>
                 </div>
                 {datasetCount !== null && (
@@ -161,7 +163,8 @@ export default function DashboardPage() {
                 ) : (
                   <div className="rounded-xl border border-border/60 bg-muted/30 px-4 py-3 flex items-center justify-between">
                     <span className="text-xs sm:text-sm font-medium text-foreground">
-                      {datasetCount} active {datasetCount === 1 ? "dataset" : "datasets"} ready for exploration
+                      {datasetCount} active {datasetCount === 1 ? "dataset" : "datasets"} ready for
+                      exploration
                     </span>
                   </div>
                 )}
@@ -193,7 +196,9 @@ export default function DashboardPage() {
                   </div>
                   <div>
                     <h3 className="text-base font-semibold text-card-foreground">Analyses</h3>
-                    <p className="text-xs sm:text-sm text-muted-foreground">Analytical sessions & reasoning</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground">
+                      Analytical sessions & reasoning
+                    </p>
                   </div>
                 </div>
                 {recentSessions.length > 0 && (
@@ -204,7 +209,8 @@ export default function DashboardPage() {
               </div>
               <div className="mt-5 rounded-xl border border-border/60 bg-muted/30 px-4 py-3">
                 <span className="text-xs sm:text-sm font-medium text-muted-foreground">
-                  Ask questions, formulate verified SQL queries, explore charts, and inspect supporting evidence.
+                  Ask questions, formulate verified SQL queries, explore charts, and inspect
+                  supporting evidence.
                 </span>
               </div>
             </div>
@@ -254,9 +260,18 @@ export default function DashboardPage() {
                     </p>
                     <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
                       <Clock className="h-3 w-3" />
-                      <span>{new Date(session.updated_at).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                      <span>
+                        {new Date(session.updated_at).toLocaleDateString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
                       <span>·</span>
-                      <span>{session.run_count} {session.run_count === 1 ? "query" : "queries"}</span>
+                      <span>
+                        {session.run_count} {session.run_count === 1 ? "query" : "queries"}
+                      </span>
                     </p>
                   </div>
                 </div>

@@ -57,12 +57,7 @@ function AnalysisContent() {
     );
   }
 
-  return (
-    <AnalysisWorkspace
-      initialDatasets={datasets}
-      selectedDatasetId={requestedDatasetId}
-    />
-  );
+  return <AnalysisWorkspace initialDatasets={datasets} selectedDatasetId={requestedDatasetId} />;
 }
 
 export default function AnalysisPage() {

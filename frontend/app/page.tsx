@@ -22,7 +22,8 @@ export default function Home() {
 
         {/* Description */}
         <p className="mt-6 text-base leading-relaxed text-muted-foreground sm:text-lg md:text-xl">
-          An evidence-grounded, multi-agent AI data analytics platform that combines autonomous reasoning with deterministic, verified data processing.
+          An evidence-grounded, multi-agent AI data analytics platform that combines autonomous
+          reasoning with deterministic, verified data processing.
         </p>
 
         {/* Architectural Principles Pills */}

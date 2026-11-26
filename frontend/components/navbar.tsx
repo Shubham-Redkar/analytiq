@@ -29,12 +29,17 @@ export function Navbar() {
             </span>
           </Link>
           {user && (
-            <nav className="flex items-center gap-6 text-sm sm:text-base font-medium" aria-label="Main Navigation">
+            <nav
+              className="flex items-center gap-6 text-sm sm:text-base font-medium"
+              aria-label="Main Navigation"
+            >
               <Link
                 href="/dashboard"
                 aria-current={isDashboard ? "page" : undefined}
                 className={`transition-colors hover:text-foreground ${
-                  isDashboard ? "text-foreground font-semibold" : "text-muted-foreground font-medium"
+                  isDashboard
+                    ? "text-foreground font-semibold"
+                    : "text-muted-foreground font-medium"
                 }`}
               >
                 Dashboard
@@ -69,12 +74,7 @@ export function Navbar() {
               <span className="hidden md:inline-block text-sm sm:text-base font-medium text-foreground">
                 {user.display_name}
               </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleLogout}
-                className="cursor-pointer"
-              >
+              <Button variant="outline" size="sm" onClick={handleLogout} className="cursor-pointer">
                 Sign out
               </Button>
             </div>

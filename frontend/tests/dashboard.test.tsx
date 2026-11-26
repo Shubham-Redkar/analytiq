@@ -70,7 +70,9 @@ describe("Dashboard M2 Dynamic Integration & UX", () => {
     });
 
     render(<DashboardPage />);
-    expect(screen.getByRole("heading", { name: /welcome back, lead analyst/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /welcome back, lead analyst/i })
+    ).toBeInTheDocument();
   });
 
   it("3. handles missing display names gracefully without formatting artifacts", () => {
@@ -148,9 +150,7 @@ describe("Dashboard M2 Dynamic Integration & UX", () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/3 active datasets ready for exploration/i)
-      ).toBeInTheDocument();
+      expect(screen.getByText(/3 active datasets ready for exploration/i)).toBeInTheDocument();
     });
   });
 

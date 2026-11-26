@@ -40,9 +40,7 @@ export function ChartContainer({
     const dimIdx = rec.dimensionColumn
       ? columns.findIndex((c) => c.name === rec.dimensionColumn)
       : -1;
-    const metricIdx = rec.metricColumn
-      ? columns.findIndex((c) => c.name === rec.metricColumn)
-      : -1;
+    const metricIdx = rec.metricColumn ? columns.findIndex((c) => c.name === rec.metricColumn) : -1;
 
     // Limit visualization complexity to top 50 rows
     const boundedRows = rows.slice(0, 50);
@@ -53,7 +51,8 @@ export function ChartContainer({
         point[rec.dimensionColumn!] = String(r[dimIdx] ?? "NULL");
       }
       if (metricIdx >= 0) {
-        point[rec.metricColumn!] = typeof r[metricIdx] === "number" ? r[metricIdx] : Number(r[metricIdx]) || 0;
+        point[rec.metricColumn!] =
+          typeof r[metricIdx] === "number" ? r[metricIdx] : Number(r[metricIdx]) || 0;
       }
       return point;
     });
@@ -72,7 +71,9 @@ export function ChartContainer({
           {rec.title}
         </span>
         <span className="text-3xl font-bold tracking-tight text-foreground font-mono">
-          {typeof val === "number" ? val.toLocaleString(undefined, { maximumFractionDigits: 4 }) : String(val)}
+          {typeof val === "number"
+            ? val.toLocaleString(undefined, { maximumFractionDigits: 4 })
+            : String(val)}
         </span>
       </div>
     );
@@ -82,9 +83,7 @@ export function ChartContainer({
     <div className="border rounded-xl p-4 bg-card my-3 space-y-2">
       <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
         <span className="font-semibold text-foreground text-sm">{rec.title}</span>
-        {truncated && (
-          <span className="text-amber-500 font-medium">Top subset displayed</span>
-        )}
+        {truncated && <span className="text-amber-500 font-medium">Top subset displayed</span>}
       </div>
 
       <div className="w-full h-64">
@@ -119,7 +118,12 @@ export function ChartContainer({
             <BarChart
               data={chartData}
               layout={rec.type === "horizontal-bar" ? "vertical" : "horizontal"}
-              margin={{ top: 10, right: 20, left: rec.type === "horizontal-bar" ? 40 : 0, bottom: 20 }}
+              margin={{
+                top: 10,
+                right: 20,
+                left: rec.type === "horizontal-bar" ? 40 : 0,
+                bottom: 20,
+              }}
             >
               <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
               {rec.type === "horizontal-bar" ? (

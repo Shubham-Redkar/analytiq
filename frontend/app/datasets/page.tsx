@@ -3,14 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  AlertCircle,
-  Database,
-  FileSpreadsheet,
-  FileText,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { AlertCircle, Database, FileSpreadsheet, FileText, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { api, ApiError } from "@/lib/api";
 import type { Dataset } from "@/lib/types";
@@ -155,7 +148,8 @@ export default function DatasetsListPage() {
             </div>
             <h3 className="text-lg font-semibold text-foreground">No datasets uploaded yet</h3>
             <p className="mt-2 text-sm text-muted-foreground max-w-sm mx-auto">
-              Get started by uploading a CSV or XLSX spreadsheet to explore schemas, preview rows, and analyze quality.
+              Get started by uploading a CSV or XLSX spreadsheet to explore schemas, preview rows,
+              and analyze quality.
             </p>
             <Link href="/datasets/upload" className="mt-6 inline-block">
               <Button className="cursor-pointer font-semibold">
@@ -182,10 +176,7 @@ export default function DatasetsListPage() {
                   </thead>
                   <tbody className="divide-y divide-border/60 text-sm">
                     {datasets.map((dataset) => (
-                      <tr
-                        key={dataset.id}
-                        className="hover:bg-muted/30 transition-colors"
-                      >
+                      <tr key={dataset.id} className="hover:bg-muted/30 transition-colors">
                         <td className="px-6 py-4 font-semibold text-foreground">
                           <Link
                             href={`/datasets/${dataset.id}`}
@@ -292,11 +283,14 @@ export default function DatasetsListPage() {
       {datasetToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
           <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl">
-            <h3 className="text-lg font-bold text-card-foreground">
-              Delete Dataset
-            </h3>
+            <h3 className="text-lg font-bold text-card-foreground">Delete Dataset</h3>
             <p className="mt-2 text-sm text-muted-foreground">
-              Are you sure you want to delete <span className="font-semibold text-foreground">&quot;{datasetToDelete.name}&quot;</span>? This action cannot be undone and will permanently remove the dataset, its metadata, and normalized storage files.
+              Are you sure you want to delete{" "}
+              <span className="font-semibold text-foreground">
+                &quot;{datasetToDelete.name}&quot;
+              </span>
+              ? This action cannot be undone and will permanently remove the dataset, its metadata,
+              and normalized storage files.
             </p>
 
             {deleteError && (

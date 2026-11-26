@@ -15,7 +15,14 @@ import type { DatasetSchema, ColumnSchema } from "./types";
 
 export interface SemanticColumnRole {
   name: string;
-  role: "identifier" | "measure" | "categorical" | "binary_outcome" | "temporal" | "free_text" | "unknown";
+  role:
+    | "identifier"
+    | "measure"
+    | "categorical"
+    | "binary_outcome"
+    | "temporal"
+    | "free_text"
+    | "unknown";
 }
 
 export function classifyColumn(col: ColumnSchema): SemanticColumnRole["role"] {
@@ -171,12 +178,12 @@ export function formatColumnLabel(colName: string): string {
   return words;
 }
 
-export function generateSuggestedQuestions(schema?: DatasetSchema | null, datasetName?: string): string[] {
+export function generateSuggestedQuestions(
+  schema?: DatasetSchema | null,
+  datasetName?: string
+): string[] {
   if (!schema || !schema.columns || schema.columns.length === 0) {
-    return [
-      "How many total records are in this dataset?",
-      "Which columns have missing values?",
-    ];
+    return ["How many total records are in this dataset?", "Which columns have missing values?"];
   }
 
   const columns = schema.columns;

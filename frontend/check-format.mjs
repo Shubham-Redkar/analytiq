@@ -47,5 +47,7 @@ for (const d of targetDirs) {
 if (hasError) {
   process.exit(1);
 } else {
-  console.log("All frontend files verified: clean line endings, no trailing whitespace, clean EOF.");
+  console.log(
+    "All frontend files verified: clean line endings, no trailing whitespace, clean EOF."
+  );
 }

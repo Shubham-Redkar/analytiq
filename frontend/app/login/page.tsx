@@ -139,9 +139,7 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center p-4 sm:p-6">
       <Suspense
-        fallback={
-          <div className="h-72 w-full max-w-md animate-pulse rounded-2xl bg-muted" />
-        }
+        fallback={<div className="h-72 w-full max-w-md animate-pulse rounded-2xl bg-muted" />}
       >
         <LoginForm />
       </Suspense>

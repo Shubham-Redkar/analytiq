@@ -60,7 +60,9 @@ export function DatasetDetailContent({ id }: { id: string }) {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<"preview" | "schema" | "profile" | "quality">("preview");
+  const [activeTab, setActiveTab] = useState<"preview" | "schema" | "profile" | "quality">(
+    "preview"
+  );
   const [dataset, setDataset] = useState<Dataset | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -326,8 +328,9 @@ export function DatasetDetailContent({ id }: { id: string }) {
                 </span>
               </div>
               <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
-                Original file: <span className="font-mono text-foreground/80">{dataset.original_filename}</span> • Ingested on{" "}
-                {new Date(dataset.created_at).toLocaleString()}
+                Original file:{" "}
+                <span className="font-mono text-foreground/80">{dataset.original_filename}</span> •
+                Ingested on {new Date(dataset.created_at).toLocaleString()}
               </p>
             </div>
           </div>
@@ -361,7 +364,8 @@ export function DatasetDetailContent({ id }: { id: string }) {
               <div>
                 <p className="font-semibold">Dataset deletion incomplete</p>
                 <p className="text-xs text-destructive/90">
-                  A previous attempt to remove storage files failed. You can safely retry permanent deletion.
+                  A previous attempt to remove storage files failed. You can safely retry permanent
+                  deletion.
                 </p>
               </div>
             </div>
@@ -399,10 +403,10 @@ export function DatasetDetailContent({ id }: { id: string }) {
                 dataset.status === "ready"
                   ? "bg-emerald-500"
                   : dataset.status === "deleting"
-                  ? "bg-amber-500"
-                  : dataset.status === "deletion_failed"
-                  ? "bg-destructive"
-                  : "bg-muted-foreground"
+                    ? "bg-amber-500"
+                    : dataset.status === "deletion_failed"
+                      ? "bg-destructive"
+                      : "bg-muted-foreground"
               }`}
             />
             <p className="text-base sm:text-lg font-semibold capitalize text-foreground">
@@ -518,7 +522,10 @@ export function DatasetDetailContent({ id }: { id: string }) {
                         </th>
                         {preview.columns.map((col) => {
                           const isNumeric = isNumericColumn(col.logical_type, col.duckdb_type);
-                          const displayType = getFriendlyTypeLabel(col.logical_type, col.duckdb_type);
+                          const displayType = getFriendlyTypeLabel(
+                            col.logical_type,
+                            col.duckdb_type
+                          );
                           return (
                             <th
                               key={col.name}
@@ -589,72 +596,78 @@ export function DatasetDetailContent({ id }: { id: string }) {
           </div>
 
           {/* Pagination bar */}
-          {preview && preview.total_rows > 0 && (() => {
-            const totalPages = Math.max(1, Math.ceil(preview.total_rows / previewLimit));
-            const currentPage = Math.floor(previewOffset / previewLimit) + 1;
-            const startRow = preview.rows.length === 0 ? 0 : previewOffset + 1;
-            const endRow = previewOffset + preview.rows.length;
+          {preview &&
+            preview.total_rows > 0 &&
+            (() => {
+              const totalPages = Math.max(1, Math.ceil(preview.total_rows / previewLimit));
+              const currentPage = Math.floor(previewOffset / previewLimit) + 1;
+              const startRow = preview.rows.length === 0 ? 0 : previewOffset + 1;
+              const endRow = previewOffset + preview.rows.length;
 
-            return (
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-2 text-sm text-muted-foreground">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span>
-                    Showing rows {startRow.toLocaleString()}–{endRow.toLocaleString()} of{" "}
-                    {preview.total_rows.toLocaleString()}
-                  </span>
-                  <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border/50">
-                    Page {currentPage} of {totalPages}
-                  </span>
+              return (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-2 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span>
+                      Showing rows {startRow.toLocaleString()}–{endRow.toLocaleString()} of{" "}
+                      {preview.total_rows.toLocaleString()}
+                    </span>
+                    <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border/50">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={previewOffset === 0 || previewLoading}
+                      onClick={() => setPreviewOffset(0)}
+                      aria-label="First page"
+                      className="cursor-pointer px-2 text-xs"
+                    >
+                      <ChevronsLeft className="h-4 w-4" />
+                      <span className="sr-only sm:not-sr-only sm:ml-1">First</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={previewOffset === 0 || previewLoading}
+                      onClick={() => setPreviewOffset((prev) => Math.max(0, prev - previewLimit))}
+                      aria-label="Previous page"
+                      className="cursor-pointer px-2.5 text-xs"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      <span className="sr-only sm:not-sr-only sm:ml-1">Previous</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={
+                        previewOffset + previewLimit >= preview.total_rows || previewLoading
+                      }
+                      onClick={() => setPreviewOffset((prev) => prev + previewLimit)}
+                      aria-label="Next page"
+                      className="cursor-pointer px-2.5 text-xs"
+                    >
+                      <span className="sr-only sm:not-sr-only sm:mr-1">Next</span>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={
+                        previewOffset + previewLimit >= preview.total_rows || previewLoading
+                      }
+                      onClick={() => setPreviewOffset((totalPages - 1) * previewLimit)}
+                      aria-label="Last page"
+                      className="cursor-pointer px-2 text-xs"
+                    >
+                      <span className="sr-only sm:not-sr-only sm:mr-1">Last</span>
+                      <ChevronsRight className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={previewOffset === 0 || previewLoading}
-                    onClick={() => setPreviewOffset(0)}
-                    aria-label="First page"
-                    className="cursor-pointer px-2 text-xs"
-                  >
-                    <ChevronsLeft className="h-4 w-4" />
-                    <span className="sr-only sm:not-sr-only sm:ml-1">First</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={previewOffset === 0 || previewLoading}
-                    onClick={() => setPreviewOffset((prev) => Math.max(0, prev - previewLimit))}
-                    aria-label="Previous page"
-                    className="cursor-pointer px-2.5 text-xs"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                    <span className="sr-only sm:not-sr-only sm:ml-1">Previous</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={previewOffset + previewLimit >= preview.total_rows || previewLoading}
-                    onClick={() => setPreviewOffset((prev) => prev + previewLimit)}
-                    aria-label="Next page"
-                    className="cursor-pointer px-2.5 text-xs"
-                  >
-                    <span className="sr-only sm:not-sr-only sm:mr-1">Next</span>
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={previewOffset + previewLimit >= preview.total_rows || previewLoading}
-                    onClick={() => setPreviewOffset((totalPages - 1) * previewLimit)}
-                    aria-label="Last page"
-                    className="cursor-pointer px-2 text-xs"
-                  >
-                    <span className="sr-only sm:not-sr-only sm:mr-1">Last</span>
-                    <ChevronsRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            );
-          })()}
+              );
+            })()}
         </div>
       )}
 
@@ -675,9 +688,7 @@ export function DatasetDetailContent({ id }: { id: string }) {
               <tbody className="divide-y divide-border/60">
                 {columns.map((col, idx) => (
                   <tr key={col.name} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-6 py-4 font-mono text-xs text-muted-foreground">
-                      {idx + 1}
-                    </td>
+                    <td className="px-6 py-4 font-mono text-xs text-muted-foreground">{idx + 1}</td>
                     <td className="px-6 py-4 font-semibold text-foreground font-mono">
                       {col.name}
                     </td>
@@ -695,9 +706,7 @@ export function DatasetDetailContent({ id }: { id: string }) {
                           Yes
                         </span>
                       ) : (
-                        <span className="text-xs font-medium text-muted-foreground">
-                          No
-                        </span>
+                        <span className="text-xs font-medium text-muted-foreground">No</span>
                       )}
                     </td>
                   </tr>
@@ -728,7 +737,11 @@ export function DatasetDetailContent({ id }: { id: string }) {
                 </div>
 
                 {/* Type Filter Buttons */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0" role="group" aria-label="Filter columns by type">
+                <div
+                  className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0"
+                  role="group"
+                  aria-label="Filter columns by type"
+                >
                   {[
                     { id: "all", label: "All" },
                     { id: "numeric", label: "Numeric" },
@@ -753,8 +766,12 @@ export function DatasetDetailContent({ id }: { id: string }) {
 
               {filteredColumns.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-border/80 bg-muted/15 p-12 text-center">
-                  <p className="text-sm font-medium text-foreground">No columns match your filter criteria.</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Try clearing your search query or selecting &quot;All&quot; types.</p>
+                  <p className="text-sm font-medium text-foreground">
+                    No columns match your filter criteria.
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Try clearing your search query or selecting &quot;All&quot; types.
+                  </p>
                   <Button
                     variant="outline"
                     size="sm"
@@ -831,8 +848,11 @@ export function DatasetDetailContent({ id }: { id: string }) {
                         {/* High Cardinality explanation for text */}
                         {col.is_high_cardinality && (
                           <div className="py-2.5 px-3 rounded-lg bg-muted/40 border border-border/40 text-xs text-muted-foreground mb-3">
-                            <span className="font-medium text-foreground">High-cardinality text:</span>{" "}
-                            {col.distinct_count.toLocaleString()} unique values. Values are mostly distinct and may represent identifiers or unstructured text.
+                            <span className="font-medium text-foreground">
+                              High-cardinality text:
+                            </span>{" "}
+                            {col.distinct_count.toLocaleString()} unique values. Values are mostly
+                            distinct and may represent identifiers or unstructured text.
                           </div>
                         )}
 
@@ -840,7 +860,9 @@ export function DatasetDetailContent({ id }: { id: string }) {
                         {col.top_values && col.top_values.length > 0 && (
                           <div className="pt-3 border-t border-border/60">
                             <span className="text-xs font-semibold text-muted-foreground">
-                              {col.is_discrete ? "Descriptive Frequency Summary:" : "Top Frequent Values:"}
+                              {col.is_discrete
+                                ? "Descriptive Frequency Summary:"
+                                : "Top Frequent Values:"}
                             </span>
                             <div className="mt-2 space-y-1.5">
                               {col.top_values.map((item, idx) => (
@@ -887,11 +909,14 @@ export function DatasetDetailContent({ id }: { id: string }) {
                 <div className="rounded-xl border border-border bg-card p-4 shadow-2xs">
                   <p className="text-xs font-medium text-muted-foreground">Missing Cells</p>
                   <p className="mt-1 text-2xl font-bold font-mono text-foreground">
-                    {quality.summary.missing_cells.toLocaleString()} ({quality.summary.missing_percentage}%)
+                    {quality.summary.missing_cells.toLocaleString()} (
+                    {quality.summary.missing_percentage}%)
                   </p>
                 </div>
                 <div className="rounded-xl border border-border bg-card p-4 shadow-2xs">
-                  <p className="text-xs font-medium text-muted-foreground">Columns with Missing Data</p>
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Columns with Missing Data
+                  </p>
                   <p className="mt-1 text-2xl font-bold font-mono text-foreground">
                     {quality.summary.columns_with_missing} of {quality.summary.total_columns}
                   </p>
@@ -903,13 +928,16 @@ export function DatasetDetailContent({ id }: { id: string }) {
                 <div className="rounded-2xl border border-border bg-card p-6 shadow-xs space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-base font-semibold text-foreground">Missing Values by Column</h3>
+                      <h3 className="text-base font-semibold text-foreground">
+                        Missing Values by Column
+                      </h3>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         Prioritized breakdown of all columns containing missing data.
                       </p>
                     </div>
                     <span className="text-xs text-muted-foreground font-medium px-2 py-0.5 rounded bg-muted">
-                      {quality.columns_breakdown.length} affected {quality.columns_breakdown.length === 1 ? "column" : "columns"}
+                      {quality.columns_breakdown.length} affected{" "}
+                      {quality.columns_breakdown.length === 1 ? "column" : "columns"}
                     </span>
                   </div>
 
@@ -950,7 +978,9 @@ export function DatasetDetailContent({ id }: { id: string }) {
 
               {/* Verified Quality Findings list */}
               <div className="rounded-2xl border border-border bg-card p-6 shadow-xs space-y-4">
-                <h3 className="text-base font-semibold text-foreground">Verified Quality Findings</h3>
+                <h3 className="text-base font-semibold text-foreground">
+                  Verified Quality Findings
+                </h3>
                 <div className="space-y-3">
                   {quality.quality_findings.map((finding, idx) => (
                     <div
@@ -981,16 +1011,21 @@ export function DatasetDetailContent({ id }: { id: string }) {
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-muted-foreground">
                   <div>
-                    <span className="font-semibold text-foreground">Duplicate Rows:</span> Rows that share identical values across every column.
+                    <span className="font-semibold text-foreground">Duplicate Rows:</span> Rows that
+                    share identical values across every column.
                   </div>
                   <div>
-                    <span className="font-semibold text-foreground">Missing Cells:</span> Null or empty values where observation data was expected.
+                    <span className="font-semibold text-foreground">Missing Cells:</span> Null or
+                    empty values where observation data was expected.
                   </div>
                   <div>
-                    <span className="font-semibold text-foreground">High Cardinality:</span> Columns with predominantly unique values, which may indicate identifiers or unstructured text.
+                    <span className="font-semibold text-foreground">High Cardinality:</span> Columns
+                    with predominantly unique values, which may indicate identifiers or unstructured
+                    text.
                   </div>
                   <div>
-                    <span className="font-semibold text-foreground">Constant Columns:</span> Columns possessing identical values across all records with zero variance.
+                    <span className="font-semibold text-foreground">Constant Columns:</span> Columns
+                    possessing identical values across all records with zero variance.
                   </div>
                 </div>
               </div>
@@ -1005,11 +1040,12 @@ export function DatasetDetailContent({ id }: { id: string }) {
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
           <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl">
-            <h3 className="text-lg font-bold text-card-foreground">
-              Delete Dataset
-            </h3>
+            <h3 className="text-lg font-bold text-card-foreground">Delete Dataset</h3>
             <p className="mt-2 text-sm text-muted-foreground">
-              Are you sure you want to delete <span className="font-semibold text-foreground">&quot;{dataset.name}&quot;</span>? This action cannot be undone and will permanently remove the dataset, its metadata, and normalized storage files.
+              Are you sure you want to delete{" "}
+              <span className="font-semibold text-foreground">&quot;{dataset.name}&quot;</span>?
+              This action cannot be undone and will permanently remove the dataset, its metadata,
+              and normalized storage files.
             </p>
 
             {deleteError && (
@@ -1044,20 +1080,12 @@ export function DatasetDetailContent({ id }: { id: string }) {
   );
 }
 
-function DatasetDetailAsync({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+function DatasetDetailAsync({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   return <DatasetDetailContent id={id} />;
 }
 
-export default function DatasetDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function DatasetDetailPage({ params }: { params: Promise<{ id: string }> }) {
   return (
     <Suspense
       fallback={

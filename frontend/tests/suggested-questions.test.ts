@@ -17,13 +17,62 @@ describe("Semantic Suggested Questions & Formatter (M6.1)", () => {
   });
 
   it("classifies column roles correctly across schemas", () => {
-    expect(classifyColumn({ name: "PassengerId", duckdb_type: "BIGINT", logical_type: "integer", nullable: false })).toBe("identifier");
-    expect(classifyColumn({ name: "user_uuid", duckdb_type: "VARCHAR", logical_type: "string", nullable: false })).toBe("identifier");
-    expect(classifyColumn({ name: "survived", duckdb_type: "BIGINT", logical_type: "integer", nullable: false })).toBe("binary_outcome");
-    expect(classifyColumn({ name: "Pclass", duckdb_type: "BIGINT", logical_type: "integer", nullable: false })).toBe("categorical");
-    expect(classifyColumn({ name: "Name", duckdb_type: "VARCHAR", logical_type: "string", nullable: false })).toBe("free_text");
-    expect(classifyColumn({ name: "Fare", duckdb_type: "DOUBLE", logical_type: "float", nullable: false })).toBe("measure");
-    expect(classifyColumn({ name: "created_at", duckdb_type: "TIMESTAMP", logical_type: "datetime", nullable: false })).toBe("temporal");
+    expect(
+      classifyColumn({
+        name: "PassengerId",
+        duckdb_type: "BIGINT",
+        logical_type: "integer",
+        nullable: false,
+      })
+    ).toBe("identifier");
+    expect(
+      classifyColumn({
+        name: "user_uuid",
+        duckdb_type: "VARCHAR",
+        logical_type: "string",
+        nullable: false,
+      })
+    ).toBe("identifier");
+    expect(
+      classifyColumn({
+        name: "survived",
+        duckdb_type: "BIGINT",
+        logical_type: "integer",
+        nullable: false,
+      })
+    ).toBe("binary_outcome");
+    expect(
+      classifyColumn({
+        name: "Pclass",
+        duckdb_type: "BIGINT",
+        logical_type: "integer",
+        nullable: false,
+      })
+    ).toBe("categorical");
+    expect(
+      classifyColumn({
+        name: "Name",
+        duckdb_type: "VARCHAR",
+        logical_type: "string",
+        nullable: false,
+      })
+    ).toBe("free_text");
+    expect(
+      classifyColumn({
+        name: "Fare",
+        duckdb_type: "DOUBLE",
+        logical_type: "float",
+        nullable: false,
+      })
+    ).toBe("measure");
+    expect(
+      classifyColumn({
+        name: "created_at",
+        duckdb_type: "TIMESTAMP",
+        logical_type: "datetime",
+        nullable: false,
+      })
+    ).toBe("temporal");
   });
 
   it("generates natural question phrasing for Titanic dataset without raw column artifacts", () => {

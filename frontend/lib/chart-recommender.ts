@@ -38,7 +38,12 @@ export function recommendChart(
   if (rows.length === 1 && columns.length === 1) {
     const col = columns[0];
     const val = rows[0][0];
-    if (typeof val === "number" || col.duckdb_type.toLowerCase().includes("int") || col.duckdb_type.toLowerCase().includes("float") || col.duckdb_type.toLowerCase().includes("double")) {
+    if (
+      typeof val === "number" ||
+      col.duckdb_type.toLowerCase().includes("int") ||
+      col.duckdb_type.toLowerCase().includes("float") ||
+      col.duckdb_type.toLowerCase().includes("double")
+    ) {
       return {
         type: "metric",
         title: col.name,
@@ -55,7 +60,12 @@ export function recommendChart(
 
   columns.forEach((col) => {
     const t = col.duckdb_type.toLowerCase();
-    const isNum = t.includes("int") || t.includes("float") || t.includes("double") || t.includes("decimal") || t.includes("numeric");
+    const isNum =
+      t.includes("int") ||
+      t.includes("float") ||
+      t.includes("double") ||
+      t.includes("decimal") ||
+      t.includes("numeric");
     const isDate = t.includes("date") || t.includes("timestamp") || t.includes("time");
 
     if (isNum) {

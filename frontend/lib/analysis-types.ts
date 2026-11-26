@@ -169,7 +169,14 @@ export interface AnalysisSessionResponse {
 export interface StreamProgressEvent {
   request_id: string;
   seq: number;
-  event_type: "accepted" | "stage_started" | "stage_completed" | "result" | "error" | "cancelled" | "completed";
+  event_type:
+    | "accepted"
+    | "stage_started"
+    | "stage_completed"
+    | "result"
+    | "error"
+    | "cancelled"
+    | "completed";
   stage?: string | null;
   stage_name?: string | null;
   status: string;

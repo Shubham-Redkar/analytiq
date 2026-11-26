@@ -22,9 +22,7 @@ export function ClarificationCard({
       <div className="flex items-start gap-2.5">
         <HelpCircle className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
         <div className="space-y-1">
-          <span className="font-semibold text-sm text-foreground block">
-            Clarification Needed
-          </span>
+          <span className="font-semibold text-sm text-foreground block">Clarification Needed</span>
           <p className="text-xs text-foreground/90 leading-relaxed">
             {clarification.question || "Please clarify your analytical question:"}
           </p>

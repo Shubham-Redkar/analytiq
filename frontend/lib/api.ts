@@ -11,12 +11,7 @@ import type {
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 export type ApiErrorCategory =
-  | "credentials"
-  | "throttled"
-  | "security"
-  | "server"
-  | "network"
-  | "unknown";
+  "credentials" | "throttled" | "security" | "server" | "network" | "unknown";
 
 export class ApiError extends Error {
   status: number;
@@ -124,12 +119,9 @@ export const api = {
   },
 
   async listDatasets(page = 1, pageSize = 20): Promise<DatasetListResponse> {
-    return request<DatasetListResponse>(
-      `/api/v1/datasets?page=${page}&page_size=${pageSize}`,
-      {
-        method: "GET",
-      }
-    );
+    return request<DatasetListResponse>(`/api/v1/datasets?page=${page}&page_size=${pageSize}`, {
+      method: "GET",
+    });
   },
 
   async getDataset(id: string): Promise<Dataset> {
@@ -138,11 +130,7 @@ export const api = {
     });
   },
 
-  async getDatasetPreview(
-    id: string,
-    offset = 0,
-    limit = 25
-  ): Promise<DatasetPreviewResponse> {
+  async getDatasetPreview(id: string, offset = 0, limit = 25): Promise<DatasetPreviewResponse> {
     return request<DatasetPreviewResponse>(
       `/api/v1/datasets/${id}/preview?offset=${offset}&limit=${limit}`,
       {
