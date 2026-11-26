@@ -80,6 +80,16 @@ class TestSQLSecurityPolicy:
                 ["Fare", "PassengerId"],
             ),
             ('SELECT DISTINCT "Pclass" FROM dataset', ["Pclass"]),
+            (
+                'SELECT "Pclass", ROUND(100.0 * AVG(CASE WHEN "Survived" = 1 THEN 1.0 ELSE 0.0 '
+                'END), 2) AS survival_rate FROM dataset GROUP BY "Pclass" ORDER BY "Pclass"',
+                ["Pclass", "Survived"],
+            ),
+            (
+                'SELECT "Pclass", SUM(CASE WHEN "Survived" = 1 THEN 1 ELSE 0 END) AS survivors '
+                'FROM dataset GROUP BY "Pclass"',
+                ["Pclass", "Survived"],
+            ),
         ],
     )
     def test_valid_queries_pass(

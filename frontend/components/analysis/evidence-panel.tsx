@@ -186,7 +186,11 @@ export function EvidencePanel({
           <div className="flex justify-between">
             <span>Duration:</span>
             <span className="font-mono text-foreground">
-              {evidence.execution_duration_ms.toFixed(1)} ms
+              {evidence.execution_duration_ms?.toFixed(1) ??
+                evidence.total_duration_ms?.toFixed(1) ??
+                evidence.query_duration_ms?.toFixed(1) ??
+                "N/A"}{" "}
+              ms
             </span>
           </div>
           <div className="flex justify-between">

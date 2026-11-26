@@ -4,9 +4,10 @@
 
 export interface AnalyticalResultColumn {
   name: string;
-  duckdb_type: string;
-  python_type: string;
-  nullable: boolean;
+  duckdb_type?: string;
+  type?: string;
+  python_type?: string;
+  nullable?: boolean;
 }
 
 export interface ExecutionEvidence {
@@ -14,7 +15,9 @@ export interface ExecutionEvidence {
   dataset_id: string;
   dataset_snapshot_id: string;
   result_fingerprint: string;
-  execution_duration_ms: number;
+  execution_duration_ms?: number;
+  total_duration_ms?: number;
+  query_duration_ms?: number;
   returned_row_count: number;
   column_names: string[];
   row_count_accurate: boolean;

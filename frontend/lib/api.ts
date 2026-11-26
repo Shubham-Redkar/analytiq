@@ -70,7 +70,17 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     throw new ApiError(errorMessage, response.status);
   }
 
-  return response.json() as Promise<T>;
+  // Handle 204 No Content or empty responses
+  if (response.status === 204 || response.headers.get("content-length") === "0") {
+    return undefined as unknown as T;
+  }
+
+  const text = await response.text();
+  if (!text) {
+    return undefined as unknown as T;
+  }
+
+  return JSON.parse(text) as T;
 }
 
 export const api = {

@@ -71,6 +71,8 @@ ALLOWED_FUNCTIONS = {
     "COALESCE",
     "NULLIF",
     "IFNULL",
+    "CASE",
+    "IF",
     # Date & time
     "DATE_TRUNC",
     "EXTRACT",

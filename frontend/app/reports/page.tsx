@@ -62,12 +62,13 @@ export default function ReportsListPage() {
         setActionError(null);
         const res = await api.listReports(page, pageSize);
         if (!ignore) {
-          setReports(res.items);
-          setTotal(res.total);
+          setReports(Array.isArray(res?.items) ? res.items : []);
+          setTotal(typeof res?.total === "number" ? res.total : 0);
         }
       } catch {
         if (!ignore) {
           setActionError("Failed to load reports. Please try again.");
+          setReports([]);
         }
       } finally {
         if (!ignore) {
@@ -114,10 +115,10 @@ export default function ReportsListPage() {
     }
   };
 
-  const filteredReports = reports.filter(
+  const filteredReports = (reports || []).filter(
     (r) =>
-      r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (r.dataset_name && r.dataset_name.toLowerCase().includes(searchQuery.toLowerCase()))
+      (r?.title || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (r?.dataset_name && r.dataset_name.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
