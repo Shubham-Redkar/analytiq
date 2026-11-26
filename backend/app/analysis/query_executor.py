@@ -134,20 +134,20 @@ class RestrictedQueryExecutor:
         timer.start()
 
         try:
-            # 3. Strict Defense-in-Depth configuration & Table materialization
-            con.execute(f"SET max_memory = '{self.memory_limit}';")
-            con.execute(f"SET threads = {self.threads};")
-
-            escaped_path = str(parquet_path.resolve()).replace("'", "''")
-            view_sql = f"CREATE TABLE dataset AS SELECT * FROM read_parquet('{escaped_path}');"  # noqa: S608
-            con.execute(view_sql)
-
-            # Lock external access so the query cannot read other files or network
-            con.execute("SET enable_external_access = false;")
-            con.execute("SET lock_configuration = true;")
-
             # 4. Execute approved analytical query
             try:
+                # 3. Strict Defense-in-Depth configuration & Table materialization
+                con.execute(f"SET max_memory = '{self.memory_limit}';")
+                con.execute(f"SET threads = {self.threads};")
+
+                escaped_path = str(parquet_path.resolve()).replace("'", "''")
+                view_sql = f"CREATE TABLE dataset AS SELECT * FROM read_parquet('{escaped_path}');"  # noqa: S608
+                con.execute(view_sql)
+
+                # Lock external access so the query cannot read other files or network
+                con.execute("SET enable_external_access = false;")
+                con.execute("SET lock_configuration = true;")
+
                 rel = con.execute(approved_sql)
                 col_names = [desc[0] for desc in rel.description] if rel.description else []
                 col_types = [str(desc[1]) for desc in rel.description] if rel.description else []

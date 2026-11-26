@@ -453,6 +453,7 @@ def build_analytical_workflow_graph(
         evidence = state.get("evidence")
         claims = state.get("structured_claims", [])
         interpretation = state.get("interpretation")
+        request_id = state.get("request_id")
 
         if evidence is None:
             logger.warning("Verifier: No execution evidence present in state.")
@@ -469,6 +470,7 @@ def build_analytical_workflow_graph(
             columns=columns,
             rows=rows,
             claims=claims,
+            request_id=request_id,
         )
 
         # Update interpretation summary with deterministic verified prose if available
