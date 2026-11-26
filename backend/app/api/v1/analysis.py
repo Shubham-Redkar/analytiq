@@ -15,6 +15,7 @@ from app.api.deps import CurrentUser, DatabaseSession
 from app.core.config import Settings, get_settings
 from app.llm.contracts import LLMProvider
 from app.llm.factory import create_llm_provider
+from app.orchestration.contracts import OrchestrationResult
 from app.orchestration.service import OrchestrationService
 from app.schemas.analysis import (
     AnalysisQueryRequest,
@@ -255,6 +256,7 @@ async def execute_dataset_workflow_stream(
 
     async def event_generator() -> AsyncGenerator[str, None]:
         seq = 1
+        workflow_task: asyncio.Task[OrchestrationResult] | None = None
         try:
             # 1. Accepted event
             accepted_evt = StreamProgressEvent(
@@ -304,13 +306,28 @@ async def execute_dataset_workflow_stream(
                 )
             )
 
-            while not workflow_task.done():
-                done, _ = await asyncio.wait([workflow_task], timeout=2.0)
+            active_task = workflow_task
+            assert active_task is not None
+
+            while not active_task.done():
+                if cancel_event.is_set():
+                    active_task.cancel()
+                    cancelled_evt = StreamProgressEvent(
+                        request_id=request_id,
+                        seq=seq,
+                        event_type="cancelled",
+                        status="cancelled",
+                        elapsed_ms=round((time.monotonic() - start_time) * 1000, 2),
+                    )
+                    yield f"data: {cancelled_evt.model_dump_json()}\n\n"
+                    return
+
+                done, _ = await asyncio.wait([active_task], timeout=2.0)
                 if not done:
                     # Send standard SSE keepalive comment to maintain active socket
                     yield ": keepalive\n\n"
 
-            result = await workflow_task
+            result = await active_task
 
             # Map executed trace events to progressive SSE stages
             for trace in result.trace_events:
@@ -382,6 +399,12 @@ async def execute_dataset_workflow_stream(
             )
             yield f"data: {err_evt.model_dump_json()}\n\n"
         finally:
+            if workflow_task is not None and not workflow_task.done():
+                workflow_task.cancel()
+                try:
+                    await workflow_task
+                except (asyncio.CancelledError, Exception) as cleanup_exc:
+                    logger.debug("Cleaned up cancelled workflow task: %s", cleanup_exc)
             await cancellation_registry.unregister(request_id)
 
     return StreamingResponse(
