@@ -37,21 +37,25 @@ export function AnalysisHistorySidebar({
   };
 
   return (
-    <div className="flex flex-col h-full space-y-3.5">
-      <div className="flex items-center justify-between pb-3 border-b border-border">
-        <h2 className="text-sm font-semibold tracking-tight text-foreground">
-          Analysis History
-        </h2>
-        <button
-          onClick={onNewSession}
-          className="flex items-center gap-1.5 text-xs font-medium px-3 h-8 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition shadow-2xs cursor-pointer"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          <span>New analysis</span>
-        </button>
+    <div className="flex flex-col h-full space-y-4">
+      {/* Full-width New Analysis button above header */}
+      <button
+        onClick={onNewSession}
+        className="flex items-center justify-center gap-2 w-full h-10 px-4 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium transition shadow-2xs cursor-pointer shrink-0"
+      >
+        <Plus className="h-4 w-4" />
+        <span>New analysis</span>
+      </button>
+
+      {/* Analysis history section title */}
+      <div className="flex items-center justify-between pb-2 border-b border-border">
+        <h2 className="text-sm font-semibold tracking-tight text-foreground">Analysis history</h2>
+        {sessions.length > 0 && (
+          <span className="text-xs text-muted-foreground font-mono">{sessions.length}</span>
+        )}
       </div>
 
-      <div className="flex-1 overflow-y-auto space-y-1 pr-0.5">
+      <div className="flex-1 overflow-y-auto space-y-1.5 pr-0.5">
         {sessions.length === 0 ? (
           <div className="text-center py-10 px-3 space-y-1.5">
             <p className="text-sm font-medium text-foreground/80">No analyses yet</p>

@@ -14,6 +14,7 @@ import { WorkflowProgress } from "./workflow-progress";
 import { AnalysisHistorySidebar } from "./analysis-history-sidebar";
 import { generateSuggestedQuestions } from "../../lib/suggested-questions";
 import { Database, PanelLeftClose, PanelLeftOpen, AlertCircle } from "lucide-react";
+import { cn } from "cn";
 import {
   Select,
   SelectTrigger,
@@ -42,7 +43,9 @@ export function AnalysisWorkspace({
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [responses, setResponses] = useState<WorkflowAnalysisResponse[]>([]);
   const [isRunning, setIsRunning] = useState<boolean>(false);
-  const [currentProgressEvent, setCurrentProgressEvent] = useState<StreamProgressEvent | null>(null);
+  const [currentProgressEvent, setCurrentProgressEvent] = useState<StreamProgressEvent | null>(
+    null
+  );
   const [showHistory, setShowHistory] = useState<boolean>(true);
   const [generalError, setGeneralError] = useState<string | null>(null);
 
@@ -278,7 +281,11 @@ export function AnalysisWorkspace({
               className="p-2 rounded-lg border hover:bg-muted text-muted-foreground transition hidden md:flex items-center cursor-pointer"
               title={showHistory ? "Collapse history" : "Expand history"}
             >
-              {showHistory ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
+              {showHistory ? (
+                <PanelLeftClose className="h-4 w-4" />
+              ) : (
+                <PanelLeftOpen className="h-4 w-4" />
+              )}
             </button>
 
             <div className="flex items-center gap-2">
@@ -291,9 +298,12 @@ export function AnalysisWorkspace({
                   }
                 }}
               >
-                <SelectTrigger className="h-9 min-w-[220px] max-w-[320px] gap-2.5 font-medium text-sm">
+                <SelectTrigger className="h-9 min-w-[220px] max-w-[320px] font-medium text-sm">
                   <Database className="h-4 w-4 text-primary shrink-0" />
-                  <SelectValue placeholder="Select dataset...">
+                  <SelectValue
+                    placeholder="Select dataset..."
+                    className="truncate text-left font-medium"
+                  >
                     {activeDataset?.name || "Select dataset..."}
                   </SelectValue>
                 </SelectTrigger>
@@ -301,11 +311,7 @@ export function AnalysisWorkspace({
                   <SelectPositioner>
                     <SelectPopup className="min-w-[280px]">
                       {datasets.map((d) => (
-                        <SelectItem
-                          key={d.id}
-                          value={d.id}
-                          disabled={d.status !== "ready"}
-                        >
+                        <SelectItem key={d.id} value={d.id} disabled={d.status !== "ready"}>
                           <div className="flex flex-col gap-0.5">
                             <span className="font-medium text-sm text-foreground">{d.name}</span>
                             <span className="text-xs text-muted-foreground">
@@ -333,9 +339,16 @@ export function AnalysisWorkspace({
         </header>
 
         {/* Conversation Feed */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6">
+        <div
+          className={cn(
+            "flex-1 min-h-0 overflow-y-auto p-6",
+            responses.length === 0 && !isRunning
+              ? "flex flex-col justify-center items-center pb-12"
+              : "space-y-6"
+          )}
+        >
           {generalError && (
-            <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-500 flex items-center justify-between gap-2">
+            <div className="w-full max-w-2xl p-4 mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-500 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 <span>{generalError}</span>
@@ -350,24 +363,24 @@ export function AnalysisWorkspace({
           )}
 
           {responses.length === 0 && !isRunning && (
-            <div className="max-w-2xl mx-auto my-auto py-8 text-center space-y-5">
+            <div className="w-full max-w-2xl mx-auto text-center space-y-6">
               <div className="h-14 w-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-2 shadow-2xs">
                 <Database className="h-7 w-7" />
               </div>
-              <h2 className="text-2xl font-semibold tracking-tight text-foreground">
-                What would you like to explore?
-              </h2>
-              <p className="text-[15px] text-muted-foreground leading-relaxed max-w-lg mx-auto">
-                {activeDataset
-                  ? `Ask questions about ${activeDataset.name}, explore your data, and discover insights backed by evidence.`
-                  : "Select an uploaded dataset to begin exploring insights backed by deterministic evidence."}
-              </p>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                  What would you like to explore?
+                </h2>
+                <p className="text-[15px] text-muted-foreground leading-relaxed max-w-lg mx-auto">
+                  {activeDataset
+                    ? `Ask questions about ${activeDataset.name}, explore your data, and discover insights backed by evidence.`
+                    : "Select an uploaded dataset to begin exploring insights backed by deterministic evidence."}
+                </p>
+              </div>
 
               {suggestedQuestions.length > 0 && (
-                <div className="pt-3 text-left">
-                  <h3 className="text-sm font-medium text-foreground/80 mb-3">
-                    Suggested questions
-                  </h3>
+                <div className="pt-2 text-left space-y-3">
+                  <h3 className="text-sm font-medium text-foreground/80">Suggested questions</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {suggestedQuestions.map((q, idx) => (
                       <button
@@ -376,7 +389,9 @@ export function AnalysisWorkspace({
                         className="text-left text-sm p-3.5 min-h-[52px] rounded-xl border border-border bg-card hover:bg-muted/50 hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-ring transition-all text-card-foreground shadow-2xs group flex items-start justify-between gap-2.5 cursor-pointer"
                       >
                         <span className="line-clamp-2 leading-relaxed font-normal">{q}</span>
-                        <span className="text-primary opacity-0 group-hover:opacity-100 transition-opacity text-base shrink-0 mt-0.5">&rarr;</span>
+                        <span className="text-primary opacity-0 group-hover:opacity-100 transition-opacity text-base shrink-0 mt-0.5">
+                          &rarr;
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -394,10 +409,7 @@ export function AnalysisWorkspace({
           ))}
 
           {isRunning && (
-            <WorkflowProgress
-              currentEvent={currentProgressEvent}
-              onCancel={handleCancel}
-            />
+            <WorkflowProgress currentEvent={currentProgressEvent} onCancel={handleCancel} />
           )}
         </div>
 

@@ -11,39 +11,28 @@ const SelectGroup = SelectPrimitive.Group;
 
 const SelectValue = SelectPrimitive.Value;
 
-function SelectTrigger({
-  className,
-  children,
-  ...props
-}: SelectPrimitive.Trigger.Props) {
+function SelectTrigger({ className, children, ...props }: SelectPrimitive.Trigger.Props) {
   return (
     <SelectPrimitive.Trigger
       className={cn(
-        "flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-input bg-background px-3 py-2 text-sm font-medium shadow-2xs outline-none transition-colors hover:bg-muted/50 focus:border-ring focus:ring-2 focus:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 cursor-pointer",
+        "flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-input bg-background px-3 py-2 text-sm font-medium shadow-2xs outline-none transition-colors hover:bg-muted/50 focus:border-ring focus:ring-2 focus:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer",
         className
       )}
       {...props}
     >
-      {children}
-      <SelectPrimitive.Icon>
-        <ChevronDown className="h-4 w-4 opacity-50 shrink-0" />
+      <div className="flex items-center gap-2 min-w-0 flex-1 truncate text-left">{children}</div>
+      <SelectPrimitive.Icon className="shrink-0 flex items-center justify-center">
+        <ChevronDown className="h-4 w-4 opacity-50" />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   );
 }
 
-function SelectPortal({
-  children,
-  ...props
-}: SelectPrimitive.Portal.Props) {
+function SelectPortal({ children, ...props }: SelectPrimitive.Portal.Props) {
   return <SelectPrimitive.Portal {...props}>{children}</SelectPrimitive.Portal>;
 }
 
-function SelectPositioner({
-  className,
-  children,
-  ...props
-}: SelectPrimitive.Positioner.Props) {
+function SelectPositioner({ className, children, ...props }: SelectPrimitive.Positioner.Props) {
   return (
     <SelectPrimitive.Positioner
       sideOffset={6}
@@ -55,11 +44,7 @@ function SelectPositioner({
   );
 }
 
-function SelectPopup({
-  className,
-  children,
-  ...props
-}: SelectPrimitive.Popup.Props) {
+function SelectPopup({ className, children, ...props }: SelectPrimitive.Popup.Props) {
   return (
     <SelectPrimitive.Popup
       className={cn(
@@ -75,11 +60,7 @@ function SelectPopup({
   );
 }
 
-function SelectItem({
-  className,
-  children,
-  ...props
-}: SelectPrimitive.Item.Props) {
+function SelectItem({ className, children, ...props }: SelectPrimitive.Item.Props) {
   return (
     <SelectPrimitive.Item
       className={cn(
@@ -96,15 +77,9 @@ function SelectItem({
   );
 }
 
-function SelectSeparator({
-  className,
-  ...props
-}: SelectPrimitive.Separator.Props) {
+function SelectSeparator({ className, ...props }: SelectPrimitive.Separator.Props) {
   return (
-    <SelectPrimitive.Separator
-      className={cn("-mx-1 my-1 h-px bg-muted", className)}
-      {...props}
-    />
+    <SelectPrimitive.Separator className={cn("-mx-1 my-1 h-px bg-muted", className)} {...props} />
   );
 }
 
