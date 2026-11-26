@@ -2,7 +2,6 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Navbar } from "../../components/navbar";
 import { AnalysisWorkspace } from "../../components/analysis/analysis-workspace";
 import { useAuth } from "@/context/auth-context";
 import { api } from "../../lib/api";
@@ -68,8 +67,7 @@ function AnalysisContent() {
 
 export default function AnalysisPage() {
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <Navbar />
+    <div className="flex h-full flex-col bg-background">
       <Suspense
         fallback={
           <div className="flex flex-1 items-center justify-center py-24">

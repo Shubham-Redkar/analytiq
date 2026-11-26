@@ -23,9 +23,11 @@ describe("Home page", () => {
     ).toBeInTheDocument();
   });
 
-  it("displays the under development notice", () => {
+  it("displays the operational status notice", () => {
     render(<Home />);
-    expect(screen.getByText(/under development/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/interactive analytical engine & verified reasoning active/i)
+    ).toBeInTheDocument();
   });
 
   it("uses a main landmark element", () => {

@@ -244,7 +244,7 @@ export function AnalysisWorkspace({
   };
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] overflow-hidden bg-background">
+    <div className="flex h-full overflow-hidden bg-background">
       {/* Left Sidebar: Analysis Sessions & History */}
       {showHistory && (
         <aside className="w-64 border-r p-4 bg-muted/10 shrink-0 hidden md:block">
@@ -260,13 +260,13 @@ export function AnalysisWorkspace({
       )}
 
       {/* Main Workspace */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden">
+      <main className="flex-1 flex flex-col h-full min-h-0 overflow-hidden">
         {/* Workspace Top Header */}
-        <header className="border-b px-6 py-3.5 flex items-center justify-between bg-card/40 shrink-0">
+        <header className="border-b px-6 py-3 flex items-center justify-between bg-card/40 shrink-0">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowHistory(!showHistory)}
-              className="p-1.5 rounded-lg border hover:bg-muted text-muted-foreground transition hidden md:flex items-center"
+              className="p-1.5 rounded-lg border hover:bg-muted text-muted-foreground transition hidden md:flex items-center cursor-pointer"
               title={showHistory ? "Collapse history" : "Expand history"}
             >
               {showHistory ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
@@ -301,7 +301,7 @@ export function AnalysisWorkspace({
         </header>
 
         {/* Conversation Feed */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6">
           {generalError && (
             <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-500 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -310,7 +310,7 @@ export function AnalysisWorkspace({
               </div>
               <button
                 onClick={() => setGeneralError(null)}
-                className="p-1 hover:text-foreground text-rose-400"
+                className="p-1 hover:text-foreground text-rose-400 cursor-pointer"
               >
                 Dismiss
               </button>
@@ -318,16 +318,38 @@ export function AnalysisWorkspace({
           )}
 
           {responses.length === 0 && !isRunning && (
-            <div className="max-w-xl mx-auto my-12 text-center space-y-3">
+            <div className="max-w-2xl mx-auto my-8 text-center space-y-4">
               <div className="h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-2">
                 <Database className="h-6 w-6" />
               </div>
-              <h2 className="text-lg font-semibold text-foreground">
-                Intelligent Analysis. Verified Insights.
+              <h2 className="text-xl font-semibold tracking-tight text-foreground">
+                What would you like to explore?
               </h2>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Ask analytical questions in natural language. AnalytIQ formulates verified DuckDB queries, validates analytical claims, and cross-checks results against deterministic execution evidence.
+              <p className="text-sm text-muted-foreground leading-relaxed max-w-lg mx-auto">
+                {activeDataset
+                  ? `Ask analytical questions about ${activeDataset.name}. AnalytIQ formulates verified DuckDB queries, validates analytical claims, and cross-checks results against deterministic execution evidence.`
+                  : "Select an uploaded dataset to begin analytical reasoning, claim verification, and data exploration."}
               </p>
+
+              {suggestedQuestions.length > 0 && (
+                <div className="pt-4 text-left">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                    Suggested inquiries for this dataset
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {suggestedQuestions.map((q, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => handleSubmitQuestion(q)}
+                        className="text-left text-xs p-3 rounded-xl border border-border bg-card hover:bg-muted/50 hover:border-primary/40 transition-all text-card-foreground shadow-2xs group flex items-start justify-between gap-2 cursor-pointer"
+                      >
+                        <span className="line-clamp-2 leading-relaxed">{q}</span>
+                        <span className="text-primary opacity-0 group-hover:opacity-100 transition-opacity text-sm shrink-0">&rarr;</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -348,13 +370,13 @@ export function AnalysisWorkspace({
         </div>
 
         {/* Sticky Question Composer Footer */}
-        <footer className="border-t p-4 bg-background/80 backdrop-blur-xs shrink-0 max-w-4xl w-full mx-auto">
+        <footer className="border-t p-4 bg-background/95 backdrop-blur-xs shrink-0 max-w-4xl w-full mx-auto">
           <QuestionComposer
             onSubmit={handleSubmitQuestion}
             onCancel={handleCancel}
             isRunning={isRunning}
             disabled={!activeDataset || activeDataset.status !== "ready"}
-            suggestedQuestions={responses.length === 0 ? suggestedQuestions : []}
+            suggestedQuestions={responses.length === 0 ? [] : suggestedQuestions}
           />
         </footer>
       </main>

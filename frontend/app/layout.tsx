@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/context/auth-context";
 import { Navbar } from "@/components/navbar";
@@ -30,10 +31,12 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-background text-foreground">
+      <body className="h-full flex flex-col bg-background text-foreground overflow-hidden">
         <AuthProvider>
-          <Navbar />
-          <div className="flex-1">{children}</div>
+          <Suspense fallback={<div className="h-16 border-b border-border bg-card/95" />}>
+            <Navbar />
+          </Suspense>
+          <div className="flex-1 min-h-0 overflow-auto">{children}</div>
         </AuthProvider>
       </body>
     </html>
