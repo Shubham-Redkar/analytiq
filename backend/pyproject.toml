@@ -21,6 +21,7 @@ dependencies = [
     "sqlglot>=26.0.0",
     "httpx>=0.28.0",
     "langgraph>=1.2.24",
+    "reportlab>=5.1.2",
 ]
 
 [project.optional-dependencies]
