@@ -1,5 +1,6 @@
 """AnalytIQ API v1 - Dataset Analytical Query and Multi-Agent Orchestration Endpoints."""
 
+import asyncio
 import logging
 import time
 import uuid
@@ -292,13 +293,24 @@ async def execute_dataset_workflow_stream(
                 yield f"data: {cancelled_evt.model_dump_json()}\n\n"
                 return
 
-            # Execute workflow
-            result = await orchestration_service.execute_workflow(
-                dataset=dataset,
-                question=payload.question,
-                user_id=current_user.id,
-                request_id=request_id,
+            # Execute workflow concurrently with periodic SSE keepalive comments to
+            # prevent proxy / client timeouts
+            workflow_task = asyncio.create_task(
+                orchestration_service.execute_workflow(
+                    dataset=dataset,
+                    question=payload.question,
+                    user_id=current_user.id,
+                    request_id=request_id,
+                )
             )
+
+            while not workflow_task.done():
+                done, _ = await asyncio.wait([workflow_task], timeout=2.0)
+                if not done:
+                    # Send standard SSE keepalive comment to maintain active socket
+                    yield ": keepalive\n\n"
+
+            result = await workflow_task
 
             # Map executed trace events to progressive SSE stages
             for trace in result.trace_events:

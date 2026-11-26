@@ -272,30 +272,51 @@ class ResultInterpreterAgent:
                         )
 
                 if ctype == ClaimType.SCALAR_VALUE:
+                    val = (
+                        c.get("claimed_value")
+                        if c.get("claimed_value") is not None
+                        else c.get("value")
+                    )
                     parsed.append(
                         ScalarValueClaim(
                             metric_name=str(c.get("metric_name", "")),
-                            claimed_value=c.get("claimed_value"),
+                            claimed_value=val,
                             aggregation=c.get("aggregation"),
                             unit=c.get("unit"),
                             evidence_references=refs,
                         )
                     )
                 elif ctype == ClaimType.DIMENSION_ASSOCIATED_VALUE:
+                    val = (
+                        c.get("claimed_value")
+                        if c.get("claimed_value") is not None
+                        else c.get("value")
+                    )
+                    dim_val = (
+                        c.get("dimension_value")
+                        if c.get("dimension_value") is not None
+                        else c.get("entity_value", c.get("entity"))
+                    )
                     parsed.append(
                         DimensionAssociatedValueClaim(
                             dimension_name=str(c.get("dimension_name", "")),
-                            dimension_value=c.get("dimension_value"),
+                            dimension_value=dim_val,
                             metric_name=str(c.get("metric_name", "")),
-                            claimed_value=c.get("claimed_value"),
+                            claimed_value=val,
                             unit=c.get("unit"),
                             evidence_references=refs,
                         )
                     )
                 elif ctype == ClaimType.ROW_COUNT:
+                    cnt_val = (
+                        c.get("claimed_count")
+                        if c.get("claimed_count") is not None
+                        else c.get("count", c.get("value", 0))
+                    )
+                    cnt = int(cnt_val) if cnt_val is not None else 0
                     parsed.append(
                         RowCountClaim(
-                            claimed_count=int(c.get("claimed_count", 0)),
+                            claimed_count=cnt,
                             is_dataset_total=bool(c.get("is_dataset_total", False)),
                             evidence_references=refs,
                         )
