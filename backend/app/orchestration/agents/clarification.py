@@ -30,6 +30,7 @@ class ClarificationAgent:
         if ambiguity_type == ClarificationType.MISSING_TARGET_METRIC:
             options = [
                 ClarificationOption(
+                    key=f"avg_{col.lower()}",
                     label=f"Average {col}",
                     description=f"Calculate the average / mean of column '{col}'.",
                     suggested_column=col,
@@ -50,6 +51,7 @@ class ClarificationAgent:
         if ambiguity_type == ClarificationType.SUBJECTIVE_RANKING:
             options = [
                 ClarificationOption(
+                    key=f"rank_{col.lower()}",
                     label=f"Rank by {col}",
                     description=f"Rank records descending by '{col}'.",
                     suggested_column=col,
@@ -78,18 +80,21 @@ class ClarificationAgent:
             )
             options = [
                 ClarificationOption(
+                    key="month",
                     label="Monthly Trend",
                     description=f"Aggregate metrics by month using '{date_col}'.",
                     suggested_column=date_col,
                     suggested_filter="date_trunc('month', ...)",
                 ),
                 ClarificationOption(
+                    key="day",
                     label="Daily Trend",
                     description=f"Aggregate metrics daily using '{date_col}'.",
                     suggested_column=date_col,
                     suggested_filter="date_trunc('day', ...)",
                 ),
                 ClarificationOption(
+                    key="year",
                     label="Yearly Trend",
                     description=f"Aggregate metrics yearly using '{date_col}'.",
                     suggested_column=date_col,
@@ -111,6 +116,7 @@ class ClarificationAgent:
             candidates = grounding.get("candidate_metrics") or []
             options = [
                 ClarificationOption(
+                    key=f"analyze_{col.lower()}",
                     label=f"Analyze by {col}",
                     description=f"Use '{col}' as the primary metric.",
                     suggested_column=col,

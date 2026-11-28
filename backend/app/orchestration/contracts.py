@@ -65,6 +65,7 @@ class TraceEvent(BaseModel):
 class ClarificationOption(BaseModel):
     """Suggested option for resolving an analytical ambiguity."""
 
+    key: str = ""
     label: str
     description: str
     suggested_column: str | None = None
@@ -74,6 +75,7 @@ class ClarificationOption(BaseModel):
 class ClarificationOutput(BaseModel):
     """Actionable structured clarification produced by clarification agent."""
 
+    needs_clarification: bool = True
     clarification_type: ClarificationType
     question: str
     options: list[ClarificationOption] = Field(default_factory=list)

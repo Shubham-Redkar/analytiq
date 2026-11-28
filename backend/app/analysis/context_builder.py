@@ -85,10 +85,12 @@ def build_dataset_context(
                         s_str = s_str[:MAX_CATEGORICAL_VALUE_LEN] + "..."
                     safe_samples.append(s_str)
 
+        # duckdb_type or physical_type
+        raw_phys = col.get("duckdb_type") or col.get("physical_type") or "VARCHAR"
         columns.append(
             ColumnContext(
                 name=col_name,
-                physical_type=str(col.get("physical_type", "VARCHAR")),
+                physical_type=str(raw_phys),
                 logical_type=logical_type,
                 nullable=bool(col.get("nullable", True)),
                 distinct_count=distinct_cnt,

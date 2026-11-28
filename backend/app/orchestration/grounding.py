@@ -58,6 +58,7 @@ def ground_question_in_schema(
             t in col.physical_type.lower()
             for t in ["int", "float", "double", "decimal", "numeric", "real"]
         )
+        or col.logical_type in ("integer", "float", "number")
     ]
     date_cols = [
         col.name
@@ -74,7 +75,7 @@ def ground_question_in_schema(
     has_avg_request = any(re.search(pat, clean_q) for pat in BARE_AVERAGE_PATTERNS) or (
         bool(re.search(r"\b(average|mean|avg)\b", clean_q))
         and not any(
-            col.lower() in clean_q or col.lower().replace("_", " ") in clean_q
+            bool(re.search(r"\b" + re.escape(col.lower().replace("_", " ")) + r"\b", clean_q))
             for col in numeric_cols
         )
     )
