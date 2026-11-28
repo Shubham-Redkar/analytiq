@@ -14,7 +14,7 @@ from app.orchestration.contracts import IntentCategory
 # Prohibited mutation or administration keywords that can be immediately rejected
 PROHIBITED_MUTATION_PATTERNS = [
     r"\bdrop\s+(table|view|schema|database)\b",
-    r"\bdelete\s+from\b",
+    r"\bdelete\s+(from\b|all\b)",
     r"\btruncate\s+(table)?\b",
     r"\bupdate\s+\w+\s+set\b",
     r"\binsert\s+into\b",
