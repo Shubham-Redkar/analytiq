@@ -50,6 +50,9 @@ ALLOWED_FUNCTIONS = {
     "VARIANCE",
     "VAR_SAMP",
     "VAR_POP",
+    "CORR",
+    "COVAR_SAMP",
+    "COVAR_POP",
     # Math
     "ROUND",
     "CEIL",
