@@ -41,6 +41,16 @@ class ReportSummaryResponse(BaseModel):
     updated_at: datetime
 
 
+class ReportListResponse(BaseModel):
+    """Paginated report listing response matching frontend contract."""
+
+    items: list[ReportSummaryResponse]
+    total: int
+    page: int
+    page_size: int
+    pages: int
+
+
 class ReportDetailResponse(BaseModel):
     """Full detail response containing structured document."""
 

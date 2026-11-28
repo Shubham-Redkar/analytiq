@@ -417,6 +417,17 @@ async def test_report_api_endpoints(
     dup_id = dup_resp.json()["id"]
     assert dup_id != report_id
 
+    # 5b. List Reports via API (M7.1 paginated contract)
+    list_resp = await client.get("/api/v1/reports")
+    assert list_resp.status_code == 200
+    list_data = list_resp.json()
+    assert "items" in list_data
+    assert "total" in list_data
+    assert list_data["total"] >= 2
+    assert len(list_data["items"]) >= 2
+    assert list_data["page"] == 1
+    assert list_data["pages"] >= 1
+
     # 6. Delete Report via API
     del_resp = await client.delete(f"/api/v1/reports/{report_id}")
     assert del_resp.status_code == 204

@@ -1,6 +1,7 @@
 """AnalytIQ API v1 - Authenticated Report management and export endpoints."""
 
 import logging
+import math
 import uuid
 
 from fastapi import APIRouter, Query, Response, status
@@ -13,6 +14,7 @@ from app.reports.exporters.pdf import PDFExporter
 from app.schemas.report import (
     CreateReportRequest,
     ReportDetailResponse,
+    ReportListResponse,
     ReportSummaryResponse,
     UpdateReportRequest,
 )
@@ -59,25 +61,33 @@ async def create_report(
 
 @router.get(
     "",
-    response_model=list[ReportSummaryResponse],
+    response_model=ReportListResponse,
     summary="List all reports owned by the authenticated user",
 )
 async def list_reports(
     current_user: CurrentUser,
     db: DatabaseSession,
     dataset_id: uuid.UUID | None = Query(default=None),  # noqa: B008
-    limit: int = Query(default=50, ge=1, le=100),
-    offset: int = Query(default=0, ge=0),
-) -> list[ReportSummaryResponse]:
-    """Retrieve summarized reports list."""
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    limit: int | None = Query(default=None, ge=1, le=100),
+    offset: int | None = Query(default=None, ge=0),
+) -> ReportListResponse:
+    """Retrieve summarized reports list with pagination metadata."""
+    effective_limit = limit if limit is not None else page_size
+    effective_offset = offset if offset is not None else (page - 1) * page_size
+
     reports = await report_service.list_reports(
         db=db,
         user_id=current_user.id,
         dataset_id=dataset_id,
-        limit=limit,
-        offset=offset,
+        limit=effective_limit,
+        offset=effective_offset,
     )
-    return [
+    total = await report_service.get_report_count(db=db, user_id=current_user.id)
+    pages = max(1, math.ceil(total / effective_limit))
+
+    items = [
         ReportSummaryResponse(
             id=r.id,
             dataset_id=r.dataset_id,
@@ -92,6 +102,13 @@ async def list_reports(
         )
         for r in reports
     ]
+    return ReportListResponse(
+        items=items,
+        total=total,
+        page=page,
+        page_size=effective_limit,
+        pages=pages,
+    )
 
 
 @router.get(

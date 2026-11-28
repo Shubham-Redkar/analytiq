@@ -62,8 +62,11 @@ export default function ReportsListPage() {
         setActionError(null);
         const res = await api.listReports(page, pageSize);
         if (!ignore) {
-          setReports(Array.isArray(res?.items) ? res.items : []);
-          setTotal(typeof res?.total === "number" ? res.total : 0);
+          if (!res || !Array.isArray(res.items) || typeof res.total !== "number") {
+            throw new Error("Invalid response format received from reports service.");
+          }
+          setReports(res.items);
+          setTotal(res.total);
         }
       } catch {
         if (!ignore) {
