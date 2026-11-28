@@ -70,17 +70,74 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     throw new ApiError(errorMessage, response.status);
   }
 
-  // Handle 204 No Content or empty responses
+  // A JSON endpoint returning 204 or empty text is an unexpected contract violation
   if (response.status === 204 || response.headers.get("content-length") === "0") {
-    return undefined as unknown as T;
+    throw new ApiError(
+      `Expected JSON response from ${endpoint} but received status ${response.status} with empty content.`,
+      response.status,
+      "server"
+    );
   }
 
   const text = await response.text();
-  if (!text) {
-    return undefined as unknown as T;
+  if (!text || text.trim() === "") {
+    throw new ApiError(
+      `Expected JSON response from ${endpoint} but received empty body.`,
+      response.status,
+      "server"
+    );
   }
 
-  return JSON.parse(text) as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new ApiError(
+      `Failed to parse server response from ${endpoint} as JSON.`,
+      response.status,
+      "server"
+    );
+  }
+}
+
+/**
+ * Perform a request to an endpoint that explicitly returns no content (e.g. HTTP 204).
+ * Returns Promise<void> without unsafe generic casts.
+ */
+async function requestVoid(endpoint: string, options: RequestInit = {}): Promise<void> {
+  const url = `${API_BASE}${endpoint}`;
+  const headers = new Headers(options.headers || {});
+
+  if (!headers.has("Content-Type") && options.body && !(options.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+      credentials: "include",
+    });
+  } catch {
+    throw new ApiError(
+      "Unable to connect to the server. Please check your network connection.",
+      0,
+      "network"
+    );
+  }
+
+  if (!response.ok) {
+    let errorMessage = `Request failed with status ${response.status}`;
+    try {
+      const errorData = (await response.json()) as ApiErrorResponse;
+      if (errorData?.detail) {
+        errorMessage = errorData.detail;
+      }
+    } catch {
+      // Non-JSON error body
+    }
+    throw new ApiError(errorMessage, response.status);
+  }
 }
 
 export const api = {
@@ -210,7 +267,7 @@ export const api = {
   },
 
   async deleteAnalysisSession(sessionId: string): Promise<void> {
-    return request(`/api/v1/sessions/${sessionId}`, { method: "DELETE" });
+    return requestVoid(`/api/v1/sessions/${sessionId}`, { method: "DELETE" });
   },
 
   async executeAnalysis(
@@ -274,7 +331,7 @@ export const api = {
   },
 
   async deleteReport(reportId: string): Promise<void> {
-    return request(`/api/v1/reports/${reportId}`, {
+    return requestVoid(`/api/v1/reports/${reportId}`, {
       method: "DELETE",
     });
   },
