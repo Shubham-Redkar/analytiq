@@ -1,8 +1,13 @@
 /**
- * AnalytIQ Deterministic Chart Recommendation Engine (M6).
+ * AnalytIQ Deterministic Chart Recommendation Engine (M6 / M7.1).
  *
  * Principle: Charts must be derived exclusively from deterministic result data.
  * No LLM hallucinations or guessing values.
+ *
+ * M7.1 fix: numeric categorical detection.
+ * Integer columns used as grouping dimensions (e.g. pclass=1,2,3) have low cardinality
+ * in the result rows. When an integer column appears first and the result has 2–50 distinct
+ * values across ≤50 rows, treat it as a categorical dimension rather than a metric.
  */
 
 import type { AnalyticalResultColumn } from "./analysis-types";
@@ -16,7 +21,110 @@ export interface ChartRecommendation {
   metricColumn?: string;
   additionalMetricColumns?: string[];
   isEligible: boolean;
+  /** True when the metric values are proportions (0–1 range) → format as % */
+  metricIsProportion?: boolean;
   reason?: string;
+}
+
+/** Known categorical column name patterns even when stored as integers. */
+const KNOWN_CATEGORICAL_NAMES = new Set([
+  "pclass",
+  "class",
+  "passenger_class",
+  "sex",
+  "gender",
+  "embarked",
+  "embarkation",
+  "survived",
+  "survival",
+  "rating",
+  "score",
+  "grade",
+  "rank",
+  "priority",
+  "level",
+  "category",
+  "cat",
+  "type",
+  "status",
+  "flag",
+  "group",
+  "region",
+  "zone",
+  "segment",
+  "tier",
+  "bin",
+  "bucket",
+]);
+
+/** Returns true when a column should be treated as a categorical dimension. */
+function isCategoricalDimension(
+  col: AnalyticalResultColumn,
+  colIdx: number,
+  rows: (string | number | boolean | null)[][],
+  numericMetricCandidates: number
+): boolean {
+  const nameLower = col.name.toLowerCase().replace(/[^a-z0-9_]/g, "");
+  const t = (col.duckdb_type || col.type || "").toLowerCase();
+
+  // Always treat text/varchar columns as categorical
+  if (
+    !t.includes("int") &&
+    !t.includes("float") &&
+    !t.includes("double") &&
+    !t.includes("decimal")
+  ) {
+    return false; // handled by textCols already
+  }
+
+  // If the column name matches a known categorical pattern
+  if (KNOWN_CATEGORICAL_NAMES.has(nameLower)) return true;
+
+  // Heuristic: low-cardinality INTEGER column where every value is distinct in a small result
+  // Only apply to true integers (not floats/doubles which are metrics)
+  const isIntType =
+    t.includes("int") || t.includes("bigint") || t.includes("tinyint") || t.includes("smallint");
+  if (!isIntType) return false; // floats are always metrics, never categorical dims
+
+  if (numericMetricCandidates < 1) return false;
+  if (rows.length < 2 || rows.length > 50) return false;
+
+  const distinctValues = new Set<unknown>();
+  for (const row of rows) {
+    distinctValues.add(row[colIdx]);
+  }
+  const cardinality = distinctValues.size;
+
+  // Low cardinality relative to result size indicates it's a grouping dimension
+  const isLowCardinality = cardinality <= 20 && cardinality === rows.length;
+  return isLowCardinality;
+}
+
+/** Detect whether metric values represent proportions (all between 0 and 1). */
+function detectProportion(
+  col: AnalyticalResultColumn,
+  colIdx: number,
+  rows: (string | number | boolean | null)[][]
+): boolean {
+  const nameLower = col.name.toLowerCase();
+  const looksLikeRate =
+    nameLower.includes("rate") ||
+    nameLower.includes("ratio") ||
+    nameLower.includes("proportion") ||
+    nameLower.includes("pct") ||
+    nameLower.includes("percent") ||
+    nameLower.includes("share");
+
+  if (!looksLikeRate) return false;
+
+  // Verify all numeric values are in [0, 1]
+  for (const row of rows) {
+    const val = row[colIdx];
+    if (val === null || val === undefined) continue;
+    const n = typeof val === "number" ? val : Number(val);
+    if (isNaN(n) || n < 0 || n > 1) return false;
+  }
+  return true;
 }
 
 export function recommendChart(
@@ -54,11 +162,12 @@ export function recommendChart(
     }
   }
 
-  // Identify column types
+  // Classify column types
   const numericCols: string[] = [];
   const textCols: string[] = [];
   const dateCols: string[] = [];
 
+  // First pass: identify all numeric columns (potential metrics)
   columns.forEach((col) => {
     const t = (col.duckdb_type || col.type || "").toLowerCase();
     const isNum =
@@ -69,14 +178,50 @@ export function recommendChart(
       t.includes("numeric");
     const isDate = t.includes("date") || t.includes("timestamp") || t.includes("time");
 
-    if (isNum) {
-      numericCols.push(col.name);
-    } else if (isDate) {
+    if (isDate) {
       dateCols.push(col.name);
-    } else {
+    } else if (!isNum) {
       textCols.push(col.name);
     }
+    // numeric columns: defer until after categorical detection
   });
+
+  // Second pass: separate numeric columns into categoricalDims vs metricCols
+  // A numeric column is a categorical dimension if it passes isCategoricalDimension()
+  const categoricalDimsFromNumeric: string[] = [];
+
+  columns.forEach((col, colIdx) => {
+    const t = (col.duckdb_type || col.type || "").toLowerCase();
+    const isNum =
+      t.includes("int") ||
+      t.includes("float") ||
+      t.includes("double") ||
+      t.includes("decimal") ||
+      t.includes("numeric");
+    if (!isNum) return;
+
+    // Count how many OTHER numeric columns exist (potential metrics)
+    const otherNumerics = columns.filter((c, i) => {
+      if (i === colIdx) return false;
+      const ct = (c.duckdb_type || c.type || "").toLowerCase();
+      return (
+        ct.includes("int") ||
+        ct.includes("float") ||
+        ct.includes("double") ||
+        ct.includes("decimal") ||
+        ct.includes("numeric")
+      );
+    }).length;
+
+    if (isCategoricalDimension(col, colIdx, rows, otherNumerics)) {
+      categoricalDimsFromNumeric.push(col.name);
+    } else {
+      numericCols.push(col.name);
+    }
+  });
+
+  // Merge text + promoted categorical dims into dimensions pool
+  const allDims = [...textCols, ...categoricalDimsFromNumeric];
 
   // 2. Temporal aggregation -> Line Chart
   if (dateCols.length >= 1 && numericCols.length >= 1) {
@@ -90,26 +235,32 @@ export function recommendChart(
     };
   }
 
-  // 3. Categorical + Numeric Metric -> Bar or Horizontal Bar
-  if (textCols.length >= 1 && numericCols.length >= 1) {
-    const dimCol = textCols[0];
+  // 3. Categorical/Dimension + Numeric Metric -> Bar or Horizontal Bar
+  if (allDims.length >= 1 && numericCols.length >= 1) {
+    const dimCol = allDims[0];
     const metricCol = numericCols[0];
 
-    // Check average label length
+    // Find column indices for label length check
+    const dimIdx = columns.findIndex((c) => c.name === dimCol);
+    const metricIdx = columns.findIndex((c) => c.name === metricCol);
+
     let maxLen = 0;
-    const colIdx = columns.findIndex((c) => c.name === dimCol);
     rows.forEach((r) => {
-      const v = String(r[colIdx] ?? "");
+      const v = String(r[dimIdx] ?? "");
       if (v.length > maxLen) maxLen = v.length;
     });
 
     const isHorizontal = maxLen > 15;
+    const metricIsProportion =
+      metricIdx >= 0 ? detectProportion(columns[metricIdx], metricIdx, rows) : false;
+
     return {
       type: isHorizontal ? "horizontal-bar" : "bar",
       title: `${metricCol} by ${dimCol}`,
       dimensionColumn: dimCol,
       metricColumn: metricCol,
       isEligible: true,
+      metricIsProportion,
       reason: truncated ? "Chart displays returned top subset." : undefined,
     };
   }

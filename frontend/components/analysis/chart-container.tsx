@@ -14,12 +14,21 @@ import {
 } from "recharts";
 import type { AnalyticalResultColumn } from "../../lib/analysis-types";
 import { recommendChart, type ChartRecommendation } from "../../lib/chart-recommender";
+import { formatDisplayHeader } from "../../lib/suggested-questions";
 
 interface ChartContainerProps {
   columns: AnalyticalResultColumn[];
   rows: (string | number | boolean | null)[][];
   returnedRowCount: number;
   truncated?: boolean;
+}
+
+/** Format a numeric value for display on the chart axis / tooltip. */
+function formatMetricValue(value: number, isProportion: boolean): string {
+  if (isProportion) {
+    return `${(value * 100).toFixed(1)}%`;
+  }
+  return value.toLocaleString(undefined, { maximumFractionDigits: 4 });
 }
 
 export function ChartContainer({
@@ -59,7 +68,13 @@ export function ChartContainer({
   }, [rec, columns, rows]);
 
   if (!rec.isEligible) {
-    return null;
+    // Show a message rather than nothing, so the user understands why no chart is shown
+    return (
+      <div className="flex flex-col items-center justify-center py-8 text-sm text-muted-foreground gap-2">
+        <span className="text-2xl">📊</span>
+        <span>No chart available — viewing data in table form below.</span>
+      </div>
+    );
   }
 
   // 1. Single scalar metric display
@@ -68,7 +83,7 @@ export function ChartContainer({
     return (
       <div className="p-6 border rounded-xl bg-card text-center my-3 max-w-sm mx-auto shadow-xs">
         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1">
-          {rec.title}
+          {formatDisplayHeader(rec.title)}
         </span>
         <span className="text-3xl font-bold tracking-tight text-foreground font-mono">
           {typeof val === "number"
@@ -79,25 +94,48 @@ export function ChartContainer({
     );
   }
 
+  const isProportion = rec.metricIsProportion ?? false;
+  const dimLabel = rec.dimensionColumn ? formatDisplayHeader(rec.dimensionColumn) : "";
+  const metricLabel = rec.metricColumn
+    ? isProportion
+      ? "Survival rate (%)"
+      : formatDisplayHeader(rec.metricColumn)
+    : "";
+  const chartTitle = `${metricLabel} by ${dimLabel}`;
+
   return (
     <div className="border rounded-xl p-4 bg-card my-3 space-y-2">
       <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
-        <span className="font-semibold text-foreground text-sm">{rec.title}</span>
+        <span className="font-semibold text-foreground text-sm">{chartTitle}</span>
         {truncated && <span className="text-amber-500 font-medium">Top subset displayed</span>}
       </div>
 
       <div className="w-full h-64">
         <ResponsiveContainer width="100%" height="100%">
           {rec.type === "line" ? (
-            <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
+            <LineChart
+              data={chartData}
+              margin={{ top: 10, right: 20, left: isProportion ? 20 : 0, bottom: 20 }}
+            >
               <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
               <XAxis
                 dataKey={rec.dimensionColumn}
                 tick={{ fontSize: 11 }}
                 interval="preserveStartEnd"
               />
-              <YAxis tick={{ fontSize: 11 }} />
+              <YAxis
+                tick={{ fontSize: 11 }}
+                tickFormatter={isProportion ? (v: number) => `${(v * 100).toFixed(0)}%` : undefined}
+                domain={isProportion ? [0, 1] : ["auto", "auto"]}
+              />
               <Tooltip
+                formatter={(value) => [
+                  formatMetricValue(
+                    typeof value === "number" ? value : Number(value) || 0,
+                    isProportion
+                  ),
+                  metricLabel,
+                ]}
                 contentStyle={{
                   backgroundColor: "var(--color-card, #1e293b)",
                   borderColor: "var(--color-border, #334155)",
@@ -121,23 +159,43 @@ export function ChartContainer({
               margin={{
                 top: 10,
                 right: 20,
-                left: rec.type === "horizontal-bar" ? 40 : 0,
+                left: rec.type === "horizontal-bar" ? 40 : isProportion ? 20 : 0,
                 bottom: 20,
               }}
             >
               <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
               {rec.type === "horizontal-bar" ? (
                 <>
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
+                  <XAxis
+                    type="number"
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={
+                      isProportion ? (v: number) => `${(v * 100).toFixed(0)}%` : undefined
+                    }
+                    domain={isProportion ? [0, 1] : ["auto", "auto"]}
+                  />
                   <YAxis dataKey={rec.dimensionColumn} type="category" tick={{ fontSize: 11 }} />
                 </>
               ) : (
                 <>
                   <XAxis dataKey={rec.dimensionColumn} tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
+                  <YAxis
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={
+                      isProportion ? (v: number) => `${(v * 100).toFixed(0)}%` : undefined
+                    }
+                    domain={isProportion ? [0, 1] : ["auto", "auto"]}
+                  />
                 </>
               )}
               <Tooltip
+                formatter={(value) => [
+                  formatMetricValue(
+                    typeof value === "number" ? value : Number(value) || 0,
+                    isProportion
+                  ),
+                  metricLabel,
+                ]}
                 contentStyle={{
                   backgroundColor: "var(--color-card, #1e293b)",
                   borderColor: "var(--color-border, #334155)",

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import type { WorkflowAnalysisResponse } from "../../lib/analysis-types";
 import { ResultTable } from "./result-table";
 import { ChartContainer } from "./chart-container";
@@ -15,26 +15,170 @@ import {
   Table as TableIcon,
   ShieldAlert,
 } from "lucide-react";
+import { recommendChart } from "../../lib/chart-recommender";
+import { formatColumnLabel, formatDisplayHeader } from "../../lib/suggested-questions";
 
 interface AnalysisResponseCardProps {
   response: WorkflowAnalysisResponse;
   onClarify?: (option: string) => void;
 }
 
+/**
+ * Build a human-readable verified insight from deterministic result data.
+ * Produces clear analytical findings (e.g. ranking comparisons, rate percentages, totals)
+ * while keeping technical verification statements (row count match, exact claim proofs)
+ * segregated inside the Evidence Panel.
+ */
+function buildHumanReadableInsight(response: WorkflowAnalysisResponse): string | null {
+  if (response.unsupported_reason) return response.unsupported_reason;
+  if (response.status === "failed" && response.error_message) return response.error_message;
+
+  const { columns, rows, returned_row_count } = response;
+  if (!columns || columns.length === 0 || !rows || rows.length === 0) {
+    return returned_row_count > 0
+      ? "Results computed successfully from analytical query."
+      : "The analytical query completed with 0 matching records.";
+  }
+
+  // 1. Single scalar metric result (1 row, 1 column)
+  if (rows.length === 1 && columns.length === 1) {
+    const col = columns[0];
+    const val = rows[0][0];
+    const label = formatDisplayHeader(col.name);
+    const formatted =
+      typeof val === "number"
+        ? val.toLocaleString(undefined, { maximumFractionDigits: 4 })
+        : String(val);
+    return `${label}: ${formatted}`;
+  }
+
+  // 2. Grouped Categorical Comparison (2 columns: Dimension + Metric, ≥ 2 rows)
+  if (columns.length === 2 && rows.length >= 2) {
+    const dimCol = columns[0];
+    const metricCol = columns[1];
+    const metricNameLower = metricCol.name.toLowerCase();
+    const isProportion =
+      metricNameLower.includes("rate") ||
+      metricNameLower.includes("ratio") ||
+      metricNameLower.includes("proportion") ||
+      metricNameLower.includes("pct") ||
+      metricNameLower.includes("percent") ||
+      metricNameLower.includes("share");
+
+    // Format metric values nicely
+    const formatMetricVal = (v: unknown): string => {
+      if (typeof v === "number") {
+        if (isProportion && v >= 0 && v <= 1) {
+          return `${(v * 100).toFixed(2)}%`;
+        }
+        return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+      }
+      return String(v ?? "");
+    };
+
+    // Format dimension values nicely (e.g. pclass: 1 -> "Class 1")
+    const formatDimVal = (dimName: string, val: unknown): string => {
+      const dLower = dimName.toLowerCase();
+      const sVal = String(val ?? "");
+      if (dLower === "pclass" || dLower === "class" || dLower === "passenger_class") {
+        if (sVal === "1") return "Class 1";
+        if (sVal === "2") return "Class 2";
+        if (sVal === "3") return "Class 3";
+        return `Class ${sVal}`;
+      }
+      return sVal;
+    };
+
+    // Sort rows descending by metric value
+    const sorted = [...rows].sort((a, b) => {
+      const va = typeof a[1] === "number" ? a[1] : Number(a[1]) || 0;
+      const vb = typeof b[1] === "number" ? b[1] : Number(b[1]) || 0;
+      return vb - va;
+    });
+
+    const metricLabel = formatColumnLabel(metricCol.name);
+    const isClassDim = dimCol.name.toLowerCase().includes("class");
+    const entitySuffix = isClassDim ? " passengers" : "";
+
+    if (sorted.length === 2) {
+      const [top, second] = sorted;
+      const topDim = formatDimVal(dimCol.name, top[0]);
+      const secDim = formatDimVal(dimCol.name, second[0]);
+      const topVal = formatMetricVal(top[1]);
+      const secVal = formatMetricVal(second[1]);
+
+      if (top[1] === second[1]) {
+        return `${topDim} and ${secDim} tied for ${metricLabel} at ${topVal}.`;
+      }
+      return `${topDim}${entitySuffix} had the higher ${metricLabel} at ${topVal}, compared to ${secDim} at ${secVal}.`;
+    }
+
+    if (sorted.length >= 3) {
+      const top = sorted[0];
+      const topDim = formatDimVal(dimCol.name, top[0]);
+      const topVal = formatMetricVal(top[1]);
+
+      // Check if top is tied
+      if (sorted[0][1] === sorted[1][1]) {
+        const tiedDims = sorted
+          .filter((r) => r[1] === top[1])
+          .map((r) => formatDimVal(dimCol.name, r[0]));
+        return `${tiedDims.join(" and ")} tied for the highest ${metricLabel} at ${topVal}.`;
+      }
+
+      // Format remaining items
+      const rest = sorted
+        .slice(1)
+        .map((r) => `${formatDimVal(dimCol.name, r[0])} at ${formatMetricVal(r[1])}`);
+      let restPhrase = "";
+      if (rest.length === 2) {
+        restPhrase = `${rest[0]} and ${rest[1]}`;
+      } else {
+        restPhrase = `${rest.slice(0, -1).join(", ")}, and ${rest[rest.length - 1]}`;
+      }
+
+      return `${topDim}${entitySuffix} had the highest ${metricLabel} at ${topVal}, followed by ${restPhrase}.`;
+    }
+  }
+
+  // Fallback to interpretation or cleaned non-technical summary
+  const raw = response.interpretation?.summary || response.verification?.verified_explanation;
+  if (
+    raw &&
+    !raw.startsWith("Returned row count") &&
+    !raw.startsWith("Analysis returned") &&
+    !raw.includes("Verified ")
+  ) {
+    return raw.replace(/\b(0\.\d{4,})\b/g, (match) => {
+      const val = parseFloat(match);
+      return val >= 0 && val <= 1 ? `${(val * 100).toFixed(2)}%` : match;
+    });
+  }
+
+  return `Results computed successfully for ${returned_row_count} records.`;
+}
+
 export function AnalysisResponseCard({ response, onClarify }: AnalysisResponseCardProps) {
-  const [activeTab, setActiveTab] = useState<"visual" | "table">("visual");
+  // Determine default tab: show chart tab if data is chart-eligible, otherwise table
+  const rec = useMemo(() => {
+    if (!response.columns || !response.rows) return null;
+    return recommendChart(
+      response.columns,
+      response.rows,
+      response.returned_row_count,
+      response.truncated ?? false
+    );
+  }, [response]);
+
+  const [activeTab, setActiveTab] = useState<"visual" | "table">(
+    rec?.isEligible ? "visual" : "table"
+  );
   const [showEvidence, setShowEvidence] = useState(false);
   const [highlightCoords, setHighlightCoords] = useState<{ row: number; colName: string } | null>(
     null
   );
 
-  // Authoritative verified answer
-  const answer =
-    response.verification?.verified_explanation ||
-    response.interpretation?.summary ||
-    (response.returned_row_count > 0
-      ? "Results computed successfully from analytical query."
-      : null);
+  const answer = buildHumanReadableInsight(response);
 
   const isUnsupported = Boolean(response.unsupported_reason);
   const isFailed = response.status === "failed" || Boolean(response.error_message);
@@ -152,7 +296,7 @@ export function AnalysisResponseCard({ response, onClarify }: AnalysisResponseCa
             />
           )}
 
-          <div className={activeTab === "visual" ? "pt-2" : ""}>
+          {activeTab === "table" && (
             <ResultTable
               columns={response.columns}
               rows={response.rows}
@@ -161,7 +305,7 @@ export function AnalysisResponseCard({ response, onClarify }: AnalysisResponseCa
               truncated={response.truncated}
               highlightCoordinates={highlightCoords}
             />
-          </div>
+          )}
         </div>
       )}
 
