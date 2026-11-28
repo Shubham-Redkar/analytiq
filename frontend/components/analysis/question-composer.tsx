@@ -31,7 +31,8 @@ export function QuestionComposer({
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (isRunning) return;
+    // Do not allow submission while an analysis is running or disabled
+    if (isRunning || disabled) return;
     const trimmed = question.trim();
     if (!trimmed || trimmed.length < 3) return;
     onSubmit(trimmed);
@@ -44,7 +45,10 @@ export function QuestionComposer({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit();
+      // Only submit if not running
+      if (!isRunning) {
+        handleSubmit();
+      }
     }
   };
 
@@ -60,6 +64,7 @@ export function QuestionComposer({
             {suggestedQuestions.map((q, idx) => (
               <button
                 key={idx}
+                type="button"
                 onClick={() => {
                   setQuestion(q);
                   textareaRef.current?.focus();
@@ -83,12 +88,14 @@ export function QuestionComposer({
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={disabled || isRunning}
+          disabled={disabled}
           rows={1}
           placeholder={
             disabled
               ? "Select a ready dataset to begin analysis..."
-              : "Ask a question about your dataset..."
+              : isRunning
+                ? "Prepare your next question while analysis is running..."
+                : "Ask a question about your dataset..."
           }
           className="w-full resize-none bg-transparent px-4 py-3 text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none max-h-40 min-h-[48px]"
         />
