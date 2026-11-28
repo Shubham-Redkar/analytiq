@@ -85,8 +85,15 @@ export function AnalysisWorkspace({
   }, [datasets, activeDatasetId]);
 
   const suggestedQuestions = useMemo(() => {
-    return generateSuggestedQuestions(activeDataset?.schema_json);
-  }, [activeDataset]);
+    const submittedQuestions = turns
+      .map((t) => t.question)
+      .filter((q): q is string => typeof q === "string");
+    return generateSuggestedQuestions(
+      activeDataset?.schema_json,
+      activeDataset?.name,
+      submittedQuestions
+    );
+  }, [activeDataset, turns]);
 
   const activeRequestIdRef = useRef<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);

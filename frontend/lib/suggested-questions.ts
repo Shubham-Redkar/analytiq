@@ -132,14 +132,20 @@ export function formatColumnLabel(colName: string): string {
   const trimmed = colName.trim();
   const lower = trimmed.toLowerCase();
 
-  // Known domain-specific semantic mappings
+  // Normalize: strip underscores/camelCase and lowercase for alias lookup
+  const normalized = lower.replace(/[_-]/g, "").replace(/\s+/g, "");
+
+  // Known domain-specific semantic mappings (lowercase for sentence flow)
   const aliases: Record<string, string> = {
     pclass: "passenger class",
+    passengerclass: "passenger class",
     fare: "fare",
     age: "age",
     sex: "gender",
     gender: "gender",
     survived: "survival",
+    survival: "survival",
+    survivalrate: "survival rate",
     embarked: "port of embarkation",
     sibsp: "siblings/spouses aboard",
     parch: "parents/children aboard",
@@ -158,8 +164,18 @@ export function formatColumnLabel(colName: string): string {
     category: "category",
     sub_category: "sub-category",
     order_date: "order date",
+    orderdate: "order date",
     ship_date: "ship date",
+    shipdate: "ship date",
+    totalcount: "total count",
+    total_revenue: "total revenue",
+    totalrevenue: "total revenue",
+    customer_lifetime_value: "customer lifetime value",
   };
+
+  if (aliases[normalized]) {
+    return aliases[normalized];
+  }
 
   if (aliases[lower]) {
     return aliases[lower];
@@ -178,9 +194,33 @@ export function formatColumnLabel(colName: string): string {
   return words;
 }
 
+/**
+ * Format a database column name into a human-readable header label with title case and units.
+ * Examples:
+ *   "pclass" -> "Passenger class"
+ *   "survival_rate" / "SURVIVALRATE" -> "Survival rate (%)"
+ *   "fare" -> "Fare"
+ */
+export function formatDisplayHeader(colName: string): string {
+  const trimmed = colName.trim();
+  const lower = trimmed.toLowerCase();
+  const normalized = lower.replace(/[_-]/g, "").replace(/\s+/g, "");
+
+  if (normalized === "survivalrate") {
+    return "Survival rate (%)";
+  }
+  if (normalized === "pclass" || normalized === "passengerclass") {
+    return "Passenger class";
+  }
+
+  const base = formatColumnLabel(colName);
+  return base.charAt(0).toUpperCase() + base.slice(1);
+}
+
 export function generateSuggestedQuestions(
   schema?: DatasetSchema | null,
-  datasetName?: string
+  datasetName?: string,
+  submittedQuestions?: string[]
 ): string[] {
   if (!schema || !schema.columns || schema.columns.length === 0) {
     return ["How many total records are in this dataset?", "Which columns have missing values?"];
@@ -250,6 +290,13 @@ export function generateSuggestedQuestions(
   // 6. Data quality / missing values
   suggestions.push("Which columns contain missing values?");
 
-  // Return top 4 distinct questions
-  return Array.from(new Set(suggestions)).slice(0, 4);
+  // Deduplicate against already-submitted questions (case-insensitive, trimmed)
+  const submittedNormalized = new Set(
+    (submittedQuestions ?? []).map((q) => q.toLowerCase().trim())
+  );
+
+  // Return top 4 distinct questions not already submitted
+  return Array.from(new Set(suggestions))
+    .filter((q) => !submittedNormalized.has(q.toLowerCase().trim()))
+    .slice(0, 4);
 }

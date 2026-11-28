@@ -3,6 +3,41 @@
 import React, { useState, useMemo } from "react";
 import type { AnalyticalResultColumn } from "../../lib/analysis-types";
 import { ChevronLeft, ChevronRight, ArrowUpDown, Copy, Check } from "lucide-react";
+import { formatDisplayHeader } from "../../lib/suggested-questions";
+
+interface ResultTableProps {
+  columns: AnalyticalResultColumn[];
+  rows: (string | number | boolean | null)[][];
+  totalRowCount?: number | null;
+  datasetRowCount?: number | null;
+  truncated?: boolean;
+  highlightCoordinates?: { row: number; colName: string } | null;
+}
+
+/** Format a cell value for display. Proportion columns (rate/ratio/pct/percent between 0-1) are shown as %. */
+function formatCellValue(
+  val: string | number | boolean | null,
+  col: AnalyticalResultColumn
+): React.ReactNode {
+  if (val === null || val === undefined) {
+    return <span className="text-muted-foreground italic text-xs">NULL</span>;
+  }
+  if (typeof val === "number") {
+    const nameLower = col.name.toLowerCase();
+    const looksLikeRate =
+      nameLower.includes("rate") ||
+      nameLower.includes("ratio") ||
+      nameLower.includes("proportion") ||
+      nameLower.includes("pct") ||
+      nameLower.includes("percent") ||
+      nameLower.includes("share");
+    if (looksLikeRate && val >= 0 && val <= 1) {
+      return `${(val * 100).toFixed(2)}%`;
+    }
+    return val.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  }
+  return String(val);
+}
 
 interface ResultTableProps {
   columns: AnalyticalResultColumn[];
@@ -117,7 +152,7 @@ export function ResultTable({
                   className="px-3.5 py-2.5 cursor-pointer hover:bg-muted/70 transition select-none"
                 >
                   <div className="flex items-center gap-1.5">
-                    <span>{col.name}</span>
+                    <span>{formatDisplayHeader(col.name)}</span>
                     <ArrowUpDown className="h-3 w-3 opacity-60" />
                   </div>
                 </th>
@@ -149,12 +184,9 @@ export function ResultTable({
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span>
-                          {cell === null ? (
-                            <span className="text-muted-foreground italic text-xs">NULL</span>
-                          ) : typeof cell === "number" ? (
-                            cell.toLocaleString(undefined, { maximumFractionDigits: 4 })
-                          ) : (
-                            String(cell)
+                          {formatCellValue(
+                            cell,
+                            columns[colIdx] ?? { name: "", duckdb_type: "", type: "" }
                           )}
                         </span>
                         <button

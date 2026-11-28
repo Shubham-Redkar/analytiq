@@ -86,6 +86,12 @@ export function EvidencePanel({
           </div>
         </div>
 
+        {verification?.verified_explanation && (
+          <p className="text-muted-foreground text-xs pt-1 border-t border-border/40 font-mono bg-muted/30 p-2 rounded-md">
+            {verification.verified_explanation}
+          </p>
+        )}
+
         {verification?.verification_notes && (
           <p className="text-muted-foreground italic text-xs pt-1">
             {verification.verification_notes}
