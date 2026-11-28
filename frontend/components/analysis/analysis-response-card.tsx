@@ -30,6 +30,9 @@ interface AnalysisResponseCardProps {
  * segregated inside the Evidence Panel.
  */
 function buildHumanReadableInsight(response: WorkflowAnalysisResponse): string | null {
+  if (response.status === "needs_clarification" || response.clarification?.needs_clarification) {
+    return null; // ClarificationCard renders the actionable question and options
+  }
   if (response.unsupported_reason) return response.unsupported_reason;
   if (response.status === "failed" && response.error_message) return response.error_message;
 
@@ -44,15 +47,34 @@ function buildHumanReadableInsight(response: WorkflowAnalysisResponse): string |
   if (rows.length === 1 && columns.length === 1) {
     const col = columns[0];
     const val = rows[0][0];
-    const label = formatDisplayHeader(col.name);
+    const colNameLower = col.name.toLowerCase().replace(/[_\s\-()]/g, "");
     const formatted =
       typeof val === "number"
         ? val.toLocaleString(undefined, { maximumFractionDigits: 4 })
         : String(val);
+
+    if (colNameLower === "count*" || colNameLower === "countstar" || colNameLower === "count") {
+      return `The dataset contains ${formatted} records.`;
+    }
+    const label = formatDisplayHeader(col.name);
     return `${label}: ${formatted}`;
   }
 
-  // 2. Grouped Categorical Comparison (2 columns: Dimension + Metric, ≥ 2 rows)
+  // 2. Correlation / relationship result (e.g. correlation + valid_pairs)
+  if (columns.length === 2 && rows.length === 1) {
+    const col0Lower = columns[0].name.toLowerCase();
+    const col1Lower = columns[1].name.toLowerCase();
+    if (col0Lower.includes("corr") || col1Lower.includes("corr")) {
+      const corrVal = Number(col0Lower.includes("corr") ? rows[0][0] : rows[0][1]);
+      const pairsVal = col0Lower.includes("corr") ? rows[0][1] : rows[0][0];
+      const sign = corrVal > 0 ? "positive" : corrVal < 0 ? "negative" : "no";
+      const strength =
+        Math.abs(corrVal) > 0.7 ? "strong" : Math.abs(corrVal) > 0.3 ? "moderate" : "weak";
+      return `The Pearson correlation coefficient is ${corrVal.toFixed(4)}, indicating a ${strength} ${sign} linear relationship (calculated across ${pairsVal} valid non-null pairs). Note that correlation does not imply causation.`;
+    }
+  }
+
+  // 3. Grouped Categorical Comparison (2 columns: Dimension + Metric, ≥ 2 rows)
   if (columns.length === 2 && rows.length >= 2) {
     const dimCol = columns[0];
     const metricCol = columns[1];
@@ -181,6 +203,9 @@ export function AnalysisResponseCard({ response, onClarify }: AnalysisResponseCa
   const answer = buildHumanReadableInsight(response);
 
   const isUnsupported = Boolean(response.unsupported_reason);
+  const isClarification =
+    response.status === "needs_clarification" ||
+    Boolean(response.clarification?.needs_clarification);
   const isFailed = response.status === "failed" || Boolean(response.error_message);
 
   return (
@@ -190,21 +215,43 @@ export function AnalysisResponseCard({ response, onClarify }: AnalysisResponseCa
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Analytical Insight
+              {isUnsupported
+                ? "Request Notice"
+                : isClarification
+                  ? "Clarification Required"
+                  : isFailed
+                    ? "Execution Notice"
+                    : "Analytical Insight"}
             </span>
-            {response.verification?.status === "verified" && (
-              <span className="flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium border border-emerald-500/20">
-                <CheckCircle2 className="h-3.5 w-3.5" /> Verified
-              </span>
-            )}
-            {response.verification?.status === "partially_verified" && (
-              <span className="flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium border border-amber-500/20">
-                <AlertTriangle className="h-3.5 w-3.5" /> Partial
-              </span>
-            )}
+            {!isUnsupported &&
+              !isClarification &&
+              !isFailed &&
+              response.verification?.status === "verified" && (
+                <span className="flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium border border-emerald-500/20">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Verified
+                </span>
+              )}
+            {!isUnsupported &&
+              !isClarification &&
+              !isFailed &&
+              response.verification?.status === "partially_verified" && (
+                <span className="flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium border border-amber-500/20">
+                  <AlertTriangle className="h-3.5 w-3.5" /> Partial
+                </span>
+              )}
             {isUnsupported && (
               <span className="text-xs px-2.5 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
                 Unsupported
+              </span>
+            )}
+            {isClarification && (
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium border border-blue-500/20">
+                Needs Clarification
+              </span>
+            )}
+            {isFailed && (
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 font-medium border border-rose-500/20">
+                Failed
               </span>
             )}
           </div>
@@ -231,12 +278,12 @@ export function AnalysisResponseCard({ response, onClarify }: AnalysisResponseCa
       </div>
 
       {/* 2. Clarification Needed */}
-      {response.clarification?.needs_clarification && onClarify && (
+      {isClarification && response.clarification && onClarify && (
         <ClarificationCard clarification={response.clarification} onSelectOption={onClarify} />
       )}
 
-      {/* 3. Authoritative Verified Explanation */}
-      {answer && (
+      {/* 3. Authoritative Verified Explanation (only for completed analyses, not unsupported/clarification) */}
+      {!isUnsupported && !isClarification && answer && (
         <div className="text-[15px] text-foreground leading-relaxed bg-muted/20 p-4 rounded-xl border border-border/80">
           {answer}
         </div>
@@ -244,7 +291,7 @@ export function AnalysisResponseCard({ response, onClarify }: AnalysisResponseCa
 
       {/* 4. Unsupported or Failure Notice */}
       {isUnsupported && (
-        <div className="flex items-start gap-2.5 p-3 rounded-xl border border-amber-500/30 bg-amber-500/5 text-xs text-foreground">
+        <div className="flex items-start gap-2.5 p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/5 text-sm text-foreground">
           <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
           <span>{response.unsupported_reason}</span>
         </div>
@@ -262,32 +309,34 @@ export function AnalysisResponseCard({ response, onClarify }: AnalysisResponseCa
       {/* 5. Result Viewers (Chart & Dynamic Table) */}
       {response.rows && response.rows.length > 0 && (
         <div className="space-y-3 pt-2">
-          <div className="flex items-center gap-2 border-b pb-2">
-            <button
-              onClick={() => setActiveTab("visual")}
-              className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-md transition font-medium ${
-                activeTab === "visual"
-                  ? "bg-accent text-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <BarChart2 className="h-3.5 w-3.5" />
-              <span>Chart</span>
-            </button>
-            <button
-              onClick={() => setActiveTab("table")}
-              className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-md transition font-medium ${
-                activeTab === "table"
-                  ? "bg-accent text-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <TableIcon className="h-3.5 w-3.5" />
-              <span>Table</span>
-            </button>
-          </div>
+          {rec?.isEligible && (
+            <div className="flex items-center gap-2 border-b pb-2">
+              <button
+                onClick={() => setActiveTab("visual")}
+                className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-md transition font-medium cursor-pointer ${
+                  activeTab === "visual"
+                    ? "bg-accent text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <BarChart2 className="h-3.5 w-3.5" />
+                <span>Chart</span>
+              </button>
+              <button
+                onClick={() => setActiveTab("table")}
+                className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-md transition font-medium cursor-pointer ${
+                  activeTab === "table"
+                    ? "bg-accent text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <TableIcon className="h-3.5 w-3.5" />
+                <span>Table</span>
+              </button>
+            </div>
+          )}
 
-          {activeTab === "visual" && (
+          {activeTab === "visual" && rec?.isEligible && (
             <ChartContainer
               columns={response.columns}
               rows={response.rows}
@@ -296,7 +345,7 @@ export function AnalysisResponseCard({ response, onClarify }: AnalysisResponseCa
             />
           )}
 
-          {activeTab === "table" && (
+          {(activeTab === "table" || !rec?.isEligible) && (
             <ResultTable
               columns={response.columns}
               rows={response.rows}

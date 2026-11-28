@@ -204,7 +204,38 @@ export function formatColumnLabel(colName: string): string {
 export function formatDisplayHeader(colName: string): string {
   const trimmed = colName.trim();
   const lower = trimmed.toLowerCase();
-  const normalized = lower.replace(/[_-]/g, "").replace(/\s+/g, "");
+  const normalized = lower.replace(/[_\s\-()]/g, "");
+
+  // Special aggregate operations
+  if (normalized === "count*" || normalized === "countstar" || normalized === "count") {
+    return "Total records";
+  }
+  if (normalized.startsWith("count(") || normalized.startsWith("count_")) {
+    const inner = colName.replace(/count[(_\s]+([a-zA-Z0-9_]+)[)\s]*/i, "$1");
+    return `Count of ${formatColumnLabel(inner)}`;
+  }
+  if (
+    normalized.startsWith("avg(") ||
+    normalized.startsWith("average_") ||
+    normalized.startsWith("avg_")
+  ) {
+    const inner = colName.replace(/(avg|average)[(_\s]+([a-zA-Z0-9_]+)[)\s]*/i, "$2");
+    return `Average ${formatColumnLabel(inner)}`;
+  }
+  if (
+    normalized.startsWith("sum(") ||
+    normalized.startsWith("total_") ||
+    normalized.startsWith("sum_")
+  ) {
+    const inner = colName.replace(/(sum|total)[(_\s]+([a-zA-Z0-9_]+)[)\s]*/i, "$2");
+    return `Total ${formatColumnLabel(inner)}`;
+  }
+  if (normalized === "correlation" || normalized === "corr") {
+    return "Correlation";
+  }
+  if (normalized === "validpairs" || normalized === "valid_pairs") {
+    return "Valid pairs";
+  }
 
   if (normalized === "survivalrate") {
     return "Survival rate (%)";
@@ -290,13 +321,28 @@ export function generateSuggestedQuestions(
   // 6. Data quality / missing values
   suggestions.push("Which columns contain missing values?");
 
-  // Deduplicate against already-submitted questions (case-insensitive, trimmed)
-  const submittedNormalized = new Set(
-    (submittedQuestions ?? []).map((q) => q.toLowerCase().trim())
-  );
+  // Semantic normalization function for question comparison
+  const normalizeQuestionSemantics = (q: string): string => {
+    return q
+      .toLowerCase()
+      .replace(/[?!.,;:'"()]/g, "")
+      .replace(/\b(passengers|rows|records|people|items|entries)\b/g, "entities")
+      .replace(/\b(dataset|table|data)\b/g, "dataset")
+      .replace(/\b(in each|by each|grouped by|per)\b/g, "by")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
+
+  // Deduplicate against already-submitted questions (semantic and exact)
+  const submittedExact = new Set((submittedQuestions ?? []).map((q) => q.toLowerCase().trim()));
+  const submittedSemantic = new Set((submittedQuestions ?? []).map(normalizeQuestionSemantics));
 
   // Return top 4 distinct questions not already submitted
   return Array.from(new Set(suggestions))
-    .filter((q) => !submittedNormalized.has(q.toLowerCase().trim()))
+    .filter((q) => {
+      const exact = q.toLowerCase().trim();
+      const sem = normalizeQuestionSemantics(q);
+      return !submittedExact.has(exact) && !submittedSemantic.has(sem);
+    })
     .slice(0, 4);
 }
