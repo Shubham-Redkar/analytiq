@@ -57,6 +57,28 @@ const KNOWN_CATEGORICAL_NAMES = new Set([
   "bucket",
 ]);
 
+/** Known metric keywords that should never be converted into categorical dimensions. */
+const KNOWN_METRIC_PATTERNS = [
+  /count/i,
+  /sum/i,
+  /avg/i,
+  /average/i,
+  /total/i,
+  /rate/i,
+  /ratio/i,
+  /pct/i,
+  /percent/i,
+  /fare/i,
+  /price/i,
+  /amount/i,
+  /revenue/i,
+  /cost/i,
+  /profit/i,
+  /score/i,
+  /correlation/i,
+  /corr/i,
+];
+
 /** Returns true when a column should be treated as a categorical dimension. */
 function isCategoricalDimension(
   col: AnalyticalResultColumn,
@@ -66,6 +88,11 @@ function isCategoricalDimension(
 ): boolean {
   const nameLower = col.name.toLowerCase().replace(/[^a-z0-9_]/g, "");
   const t = (col.duckdb_type || col.type || "").toLowerCase();
+
+  // If the column name explicitly matches known metric patterns, it is a metric, NEVER a dimension
+  if (KNOWN_METRIC_PATTERNS.some((pat) => pat.test(col.name))) {
+    return false;
+  }
 
   // Always treat text/varchar columns as categorical
   if (
